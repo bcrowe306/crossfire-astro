@@ -1,0 +1,171 @@
+---
+title: Camera follow, shake and hitstop
+description: A camera that follows the player with a look-ahead and stays inside the level, zooms smoothly, and shakes and freezes the game for a moment on hits. From the demo's forest hero and effects.
+sidebar:
+  order: 6
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+Two things that make a game feel solid: a camera that moves well, and hits you can feel. This page
+has a **CameraRig** script for the player (follow with a look-ahead, stay inside the level's
+bounds, zoom out while a button is held) and a `Hit_Feel` procedure any script can call when
+something gets hit: a camera shake plus a **hitstop**, the few frames of freeze that make a blow
+land. Both come from the demo's forest level (`scripts/hero.odin`, `scripts/effects.odin`).
+
+## The scene
+
+<Steps>
+
+1. A **Camera** node anywhere in the scene, not inside the player: the script moves it. The first
+   Camera of a scene is its camera (`scene.camera`).
+2. The player (a CharacterMover, like the [platformer character](/examples/platformer-character/))
+   gets `CameraRig` as another script (**Add script** in the inspector). Set **Level size** to the
+   level's size in pixels.
+3. Project Settings > **Input**: an action **look** (Tab, the gamepad's North button) for zooming
+   out.
+
+</Steps>
+
+## The scripts
+
+```odin title="scripts/camera_rig.odin"
+package scripts
+
+import "core:math"
+import e "engine:."
+import sdl "vendor:sdl3"
+
+/*
+CameraRig: on the player. The scene's camera follows it, looking ahead the way it moves, and never
+shows anything outside the level (0, 0 to levelSize). Holding "look" zooms out to see more.
+*/
+CameraRig :: struct {
+	using script: e.Script,
+	// The level's size in pixels (0, 0: no bounds)
+	levelSize: [2]f32 `export:"default=2560, 720"`,
+	// How far ahead of the player the camera looks, in pixels at full speed
+	lookAhead: f32 `export:"default=80 min=0 max=400"`,
+	// The point followed: this far above the player's origin (its feet)
+	height: f32 `export:"default=24 min=-200 max=200"`,
+	zoomedOut: f32 `export:"default=0.6 min=0.1 max=1"`,
+	// The look-ahead now (eased, so turning around doesn't jerk the view)
+	ahead: f32,
+}
+
+@(init)
+register_CameraRig :: proc "contextless" () {
+	e.Script_Register(CameraRig, {
+		ready = proc(self: ^CameraRig) {
+			camera := self.scene.camera
+			if camera == nil do return
+			if self.levelSize != {} do e.Camera2D_SetBounds(camera, {0, 0}, self.levelSize)
+			// Start on the player instead of sliding over from where the camera was placed
+			e.Camera2D_SnapTo(camera, e.Node_GetWorldPosition(self.node) - {0, self.height})
+		},
+		update = proc(self: ^CameraRig, _: []sdl.Event, deltaTime: f64) {
+			camera := self.scene.camera
+			if camera == nil do return
+			// Look ahead the way it's moving: -1 to 1 of the look-ahead
+			wanted: f32 = 0
+			if e.Node_Is(self.node, e.CharacterMover) {
+				velocity := (cast(^e.CharacterMover)self.node).velocity
+				wanted = clamp(velocity.x / 200, -1, 1) * self.lookAhead
+			}
+			self.ahead += (wanted - self.ahead) * (1 - math.exp(-3 * f32(deltaTime)))
+			target := e.Node_GetWorldPosition(self.node) + {self.ahead, -self.height}
+			e.Camera2D_Follow(camera, target, deltaTime)
+
+			// Zoom out while "look" is held (eased over a third of a second)
+			if e.Input_IsActionJustPressed(ACTION_LOOK) do e.Camera2D_ZoomTo(camera, self.zoomedOut, 0.35)
+			if e.Input_IsActionJustReleased(ACTION_LOOK) do e.Camera2D_ZoomTo(camera, 1, 0.35)
+		},
+	})
+}
+```
+
+```odin title="scripts/hit_feel.odin"
+package scripts
+
+import e "engine:."
+
+// How hard a hit feels
+HitWeight :: enum {
+	// A light blow (the player's sword on an enemy)
+	Light,
+	// A defeat
+	Heavy,
+	// The player hurt
+	Hurt,
+}
+
+/*
+A hitstop and a camera shake for a hit. The hitstop freezes the game for a few frames (scenes and
+globals update with a delta time of 0: physics, animations, particles and timers stop) while the
+shake goes on, so the frozen frame shakes.
+*/
+Hit_Feel :: proc(scene: ^e.Scene, weight: HitWeight) {
+	switch weight {
+	case .Light:
+		e.Game_HitStop(scene.game, 0.06)
+		e.Camera2D_Shake(scene.camera, 2.5, 0.15)
+	case .Heavy:
+		e.Game_HitStop(scene.game, 0.09)
+		e.Camera2D_Shake(scene.camera, 4, 0.25)
+	case .Hurt:
+		e.Game_HitStop(scene.game, 0.12)
+		e.Camera2D_Shake(scene.camera, 6, 0.3)
+	}
+}
+```
+
+```odin title="scripts/assets.odin (generated; the lines this page uses)"
+package scripts
+
+ACTION_LOOK :: "look"
+```
+
+Call it wherever a hit happens, for example in an enemy's hurt procedure:
+
+```odin
+// Given: self: ^e.Script, defeated: bool
+Hit_Feel(self.scene, defeated ? .Heavy : .Light)
+```
+
+## How it works
+
+- **`e.Camera2D_Follow(camera, position, dt)`** eases the camera toward a point with the camera's
+  follow settings, `camera.follow` (smoothing 6 by default; a deadzone and a top speed are off). Call it every frame from the followed node's script. (A camera placed inside
+  the player follows it rigidly instead, with no easing or look-ahead.)
+- **The look-ahead** shifts the followed point in the direction of movement, so the player sees
+  more of where they're going. It's eased itself, so turning around swings the view over smoothly.
+- **`e.Camera2D_SetBounds(camera, min, max)`** keeps the view inside a rectangle of the world: at
+  the level's edges the camera stops and the player walks toward the screen's edge. For rooms the
+  camera stays in, use [CameraZone nodes](/manual/camera-tools/#rooms-camera-zones) instead.
+- **`e.Camera2D_SnapTo`** puts the camera there at once (a level start, a respawn), with no easing.
+- **`e.Camera2D_ZoomTo(camera, zoom, seconds)`** eases the zoom: below 1 shows more of the world.
+- **`e.Camera2D_Shake(camera, strength, seconds)`** shakes by up to `strength` pixels, fading out.
+- **`e.Game_HitStop(game, seconds)`** freezes the game in real time. A longer one extends a running
+  one; a shorter one doesn't cut it, so many hits at once don't stack into a long freeze.
+
+## Try it
+
+- A box the player moves in without moving the camera, and a looser follow, set in `ready`:
+
+  ```odin
+  // Given: camera: ^e.Camera2D
+  camera.follow.deadzone = {120, 60}
+  camera.follow.smoothing = 4
+  ```
+
+- Slow motion for a finishing blow: `e.Game_SetTimeScale(self.game, 0.3)`, and `1` to go back.
+- A camera that leads more upward when falling: add `velocity.y` to the target the same way.
+- Pan to show the player a door that opened, then come back:
+  `e.Camera2D_MoveTo(camera, door_position, 1.2)`. While it pans, `Camera2D_Follow` waits.
+- With an LDtk level, take the bounds from the level instead of a field, as `hero.odin` does:
+  `level.views[0].level.size` on the scene's LDtkLevel node.
+
+<Aside>
+See [Camera tools](/manual/camera-tools/) for parallax layers, camera zones, split screen and
+minimaps.
+</Aside>

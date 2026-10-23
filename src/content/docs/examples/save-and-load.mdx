@@ -1,0 +1,215 @@
+---
+title: Save and load progress
+description: Keep the best score, unlocked levels, a checkpoint and a volume setting across runs with a global script, Save_Game and Load_Game. From the demo's GameState.
+sidebar:
+  order: 7
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+Saves in Crossfire keep **the globals' state**: the fields of your
+[global scripts](/manual/globals-data-saves/#global-scripts), written as JSON by `e.Save_Game()` and
+read back by `e.Load_Game()`. Scenes and nodes aren't saved; they start as the editor made them, and
+your scripts set them up from the globals.
+
+This page has a **Progress** global (the best score, the levels unlocked, the last checkpoint, the
+music volume), a **Checkpoint** script for Areas the player touches, and a **Spawn** script that
+puts the player at the checkpoint when a level starts. The demo's `scripts/game_state.odin` keeps its
+high score and chosen ship the same way.
+
+## The scene
+
+<Steps>
+
+1. **Scripts > New Script...**, name `Progress`, **Kind: Global script**. It's added to Project
+   Settings > **Globals**, where its exported fields (here `musicVolume`) get their starting value.
+2. In the level: Areas (with a CollisionShape each) where progress is kept, with the `Checkpoint`
+   script.
+3. The player (a CharacterMover) also gets the `Spawn` script.
+4. A **Music** bus in the [Mixer](/manual/sound/#the-mixer-buses), used by the level's MusicPlayer.
+
+</Steps>
+
+## The scripts
+
+```odin title="scripts/progress.odin"
+package scripts
+
+import "core:log"
+import "core:strings"
+import e "engine:."
+import sdl "vendor:sdl3"
+
+/*
+Progress: a global script. What it keeps is saved by e.Save_Game() and restored by
+e.Load_Game():
+- fields that aren't exported: the game's state (saved), except those tagged save:"-";
+- exported fields are settings from the editor (not saved), unless tagged save:"" (a setting the
+  player changes too).
+*/
+Progress :: struct {
+	using script: e.Script,
+	// A setting the player changes in the options: saved, the save's value wins
+	musicVolume: f32 `export:"default=0.8 min=0 max=1" save:""`,
+
+	// The game's state: saved
+	bestScore: int,
+	unlocked: int,
+	checkpointScene: string,
+	checkpoint: [2]f32,
+	// Not saved: this run's score and time
+	score: int `save:"-"`,
+	playTime: f64 `save:"-"`,
+}
+
+// Remembers a checkpoint and saves at once
+Progress_Checkpoint :: proc(self: ^Progress, scene: string, at: [2]f32) {
+	// A global outlives scenes: keep its own copy of the name (in the game's memory, like the
+	// strings Load_Game makes), not the scene's, which goes with the scene
+	self.checkpointScene = strings.clone(scene, e.Game_GetAllocator(self.game))
+	self.checkpoint = at
+	if !e.Save_Game() do log.warn("Couldn't save")
+}
+
+// A level finished: unlock the next, keep the best score, save
+Progress_LevelDone :: proc(self: ^Progress, level: int) {
+	self.unlocked = max(self.unlocked, level + 1)
+	self.bestScore = max(self.bestScore, self.score)
+	if !e.Save_Game() do log.warn("Couldn't save")
+}
+
+// Back to a new game: deletes the save and resets the state
+Progress_Reset :: proc(self: ^Progress) {
+	e.Save_Delete()
+	self.bestScore, self.unlocked, self.score = 0, 0, 0
+	self.checkpointScene, self.checkpoint = "", {}
+}
+
+// Settings that act on the engine, after a start or a load
+@(private="file")
+apply :: proc(self: ^Progress) {
+	e.Audio_SetBusVolume("Music", self.musicVolume)
+}
+
+@(init)
+register_Progress :: proc "contextless" () {
+	e.Script_Register(Progress, {
+		// Once, when the game starts: bring back the last save, if there is one
+		ready = proc(self: ^Progress) {
+			if e.Load_Game() do log.infof("Welcome back: best %d, %d levels unlocked", self.bestScore, self.unlocked)
+			apply(self)
+		},
+		// After any e.Load_Game()
+		loaded = proc(self: ^Progress) {
+			apply(self)
+		},
+		update = proc(self: ^Progress, _: []sdl.Event, dt: f64) {
+			self.playTime += dt
+		},
+	})
+}
+```
+
+```odin title="scripts/checkpoint.odin"
+package scripts
+
+import e "engine:."
+
+/*
+Checkpoint: on an Area. The player (a CharacterMover) coming in keeps this place as the restart
+point, once per checkpoint.
+*/
+Checkpoint :: struct {
+	using script: e.Script,
+	reached: bool,
+}
+
+@(init)
+register_Checkpoint :: proc "contextless" () {
+	e.Script_Register(Checkpoint, {
+		collisionEnter = proc(self: ^Checkpoint, hit: ^e.Collision) {
+			if self.reached || !e.Node_Is(hit.other, e.CharacterMover) do return
+			self.reached = true
+			if progress := e.Global(Progress); progress != nil {
+				Progress_Checkpoint(progress, self.scene.name, e.Node_GetWorldPosition(self.node))
+			}
+		},
+	})
+}
+```
+
+```odin title="scripts/spawn.odin"
+package scripts
+
+import e "engine:."
+
+/*
+Spawn: on the player. When the scene starts, moves it to the saved checkpoint if it's in this
+scene.
+*/
+Spawn :: struct {
+	using script: e.Script,
+}
+
+@(init)
+register_Spawn :: proc "contextless" () {
+	e.Script_Register(Spawn, {
+		ready = proc(self: ^Spawn) {
+			progress := e.Global(Progress)
+			if progress == nil || progress.checkpointScene != self.scene.name do return
+			e.Node_SetWorldPosition(self.node, progress.checkpoint)
+			if self.scene.camera != nil do e.Camera2D_SnapTo(self.scene.camera, progress.checkpoint)
+		},
+	})
+}
+```
+
+## What a save looks like
+
+`e.Save_Game()` writes the `save` slot, `<user data>/<game name>/saves/save.json`:
+
+```json
+{
+	"formatVersion": 1,
+	"globals": {
+		"Progress": {"musicVolume": 0.5, "bestScore": 1200, "unlocked": 2, "checkpointScene": "Level2", "checkpoint": [880, 412]}
+	}
+}
+```
+
+Games started from the editor's Play save under `<game name> (dev)`, so testing never touches an
+exported copy's saves. On Linux the user data folder is `~/.local/share`; on the web, saves go to the
+browser's local storage. Delete the file to start over.
+
+## How it works
+
+- **`e.Global(Progress)`** gives any script the game's one Progress, or `nil` when it isn't in
+  Project Settings > Globals.
+- **`e.Load_Game()`** returns false when there's no save yet (the first run), leaving the fields as
+  the editor set them. It runs in `ready`, which a global gets once, when the game starts.
+- **What's saved** is decided by tags: `score` and `playTime` are `save:"-"` (this run only);
+  `musicVolume` is exported (an editor setting) and tagged `save:""`, so the player's choice is
+  kept. Strings, numbers, arrays, maps, enums and asset handles all save.
+- **The `loaded` hook** runs after every `e.Load_Game()`: a good place to apply settings to the
+  engine (the bus volume here).
+- **Strings in a global** must outlive scenes. `self.scene.name` belongs to the scene, so
+  `Progress_Checkpoint` keeps a copy in the game's memory (`e.Game_GetAllocator`), which lasts
+  until the game quits.
+- **Save at moments that make sense**: a checkpoint, a finished level, the options closed. Nothing
+  is saved by itself.
+- **Slots** are files: `e.Save_Game("slot2")`, `e.Load_Game("slot2")`, `e.Save_Exists("slot2")`,
+  `e.Save_Delete("slot2")`. Use letters, digits, `-` and `_` in their names.
+
+## Try it
+
+- A **Continue** button: show it only when `e.Save_Exists()`, and go to `progress.checkpointScene`
+  with `e.Game_ChangeScene` ([Scene changes](/examples/scene-changes/)).
+- An options slider for the music: set `musicVolume`, call `e.Audio_SetBusVolume("Music", v)`, and
+  `e.Save_Game()` when the options close.
+- Keep the player's control bindings too: `e.Input_SaveBindings()` and `e.Input_LoadBindings()`
+  ([Rebinding](/manual/input/#rebinding-while-the-game-runs)).
+
+<Aside type="caution">
+Dialogue variables, node positions and anything not in a global aren't saved. Copy what you need
+into a global's fields before saving.
+</Aside>

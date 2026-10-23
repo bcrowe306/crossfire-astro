@@ -1,0 +1,228 @@
+---
+title: Spawn bullets and effects
+description: Make copies of components from scripts with Scene_AddComponent - bullets that fly, hit and remove themselves, and one-shot particle bursts that clean up when they finish. From the demo's blood effect.
+sidebar:
+  order: 5
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+Games make things while they run: bullets, explosions, dust puffs, dropped loot. In Crossfire you
+build the thing once in the editor as a **component** (a saved node tree), then make copies of it
+from code with `e.Scene_AddComponent`. Each copy has its own scripts, and removes itself when it's
+done.
+
+This page makes three scripts:
+
+- **Gun** fires a bullet toward the mouse while "shoot" is held, a few times a second;
+- **Bullet** flies straight, and on hitting something leaves a burst of sparks and goes;
+- **Burst** starts a one-shot particle emitter and removes it when its particles are gone (the
+  demo's `scripts/effects.odin` uses it for blood).
+
+## The scene
+
+<Steps>
+
+1. **The bullet component.** **Add Node > Area** named **Bullet**, with a small **Sprite** and a
+   **CollisionShape** (Circle, radius 4). Give it the `Bullet` script. Right-click > **Save as
+   Component**: `components/bullet.component.xml`. Delete it from the scene: the gun makes them.
+2. **The sparks component.** **Add Node > ParticleEmitter** named **Sparks**. In the inspector,
+   untick **Emitting** and **Continuous** and set **Burst** to 1 (it emits once, when started),
+   with a short **Lifetime** and some **Spread** ([Particles](/manual/particles/)). Give it the
+   `Burst` script and save it as `components/sparks.component.xml`.
+3. **The gun.** Give the player (or any node) the `Gun` script. Its **Bullet** and **Sparks** fields
+   pick the components; leave them on the defaults if you used the names above.
+4. Project Settings > **Input**: an action **shoot** bound to the left mouse button and the
+   gamepad's right trigger.
+
+</Steps>
+
+## The scripts
+
+```odin title="scripts/gun.odin"
+package scripts
+
+import "core:math/linalg"
+import e "engine:."
+import sdl "vendor:sdl3"
+
+/*
+Gun: on any node. While "shoot" is held, fires a bullet (a component) from the node toward the
+mouse, `rate` times a second.
+*/
+Gun :: struct {
+	using script: e.Script,
+	bullet: e.ComponentAsset `export:"default=components/bullet.component.xml"`,
+	// Shots a second
+	rate: f32 `export:"default=6 min=0.5 max=30"`,
+	// Pixels per second
+	bulletSpeed: f32 `export:"default=700 min=50 max=3000"`,
+	// Seconds before the next shot
+	wait: f32,
+}
+
+// Fires one bullet from the gun's node toward a world position
+Gun_Fire :: proc(self: ^Gun, toward: [2]f32) {
+	from := e.Node_GetWorldPosition(self.node)
+	direction := toward - from
+	if direction == {} do direction = {1, 0}
+	// No parent: the bullet goes at the top level of the scene, so the position is in the world
+	shot := e.Scene_AddComponent(self.scene, self.bullet, position = from)
+	if shot == nil do return
+	// The component's scripts are attached already: tell the bullet where to go
+	if bullet := e.Node_GetScript(shot, Bullet); bullet != nil {
+		bullet.velocity = linalg.normalize(direction) * self.bulletSpeed
+		bullet.shooter = self.node
+	}
+	e.Game_PlaySound(self.game, SOUND_SHOOT)
+}
+
+@(init)
+register_Gun :: proc "contextless" () {
+	e.Script_Register(Gun, {
+		update = proc(self: ^Gun, _: []sdl.Event, deltaTime: f64) {
+			self.wait = max(self.wait - f32(deltaTime), 0)
+			if self.wait > 0 || !e.Input_IsActionPressed(ACTION_SHOOT) do return
+			self.wait = 1 / self.rate
+			// The mouse in world coordinates (the camera moved and zoomed taken into account)
+			Gun_Fire(self, e.Scene_GetMouseWorldPosition(self.scene))
+		},
+	})
+}
+```
+
+```odin title="scripts/bullet.odin"
+package scripts
+
+import "core:math"
+import e "engine:."
+import sdl "vendor:sdl3"
+
+/*
+Bullet: the root (an Area) of components/bullet.component.xml. Flies by `velocity`, turned the way
+it flies. Hitting a body (not the one that fired it) leaves sparks and removes the bullet; so does
+running out of `lifetime`.
+*/
+Bullet :: struct {
+	using script: e.Script,
+	lifetime: f32 `export:"default=2 min=0.1 max=10"`,
+	sparks: e.ComponentAsset `export:"default=components/sparks.component.xml"`,
+	// Set by the gun
+	velocity: [2]f32,
+	shooter: ^e.Node,
+	age: f32,
+	done: bool,
+}
+
+// Removes the bullet: the whole component instance, at the start of the next frame
+Bullet_Remove :: proc(self: ^Bullet) {
+	if self.done do return
+	self.done = true
+	e.Scene_RemoveComponent(self.scene, self.node.id)
+}
+
+@(init)
+register_Bullet :: proc "contextless" () {
+	e.Script_Register(Bullet, {
+		update = proc(self: ^Bullet, _: []sdl.Event, deltaTime: f64) {
+			dt := f32(deltaTime)
+			self.node.position += self.velocity * dt
+			self.node.rotation = math.to_degrees(math.atan2(self.velocity.y, self.velocity.x))
+			self.age += dt
+			if self.age >= self.lifetime do Bullet_Remove(self)
+		},
+		// An Area: a body came inside it
+		collisionEnter = proc(self: ^Bullet, hit: ^e.Collision) {
+			if self.done || hit.other == self.shooter do return
+			if self.sparks.path != "" {
+				e.Scene_AddComponent(self.scene, self.sparks, position = e.Node_GetWorldPosition(self.node))
+			}
+			Bullet_Remove(self)
+		},
+	})
+}
+```
+
+```odin title="scripts/burst.odin"
+package scripts
+
+import e "engine:."
+
+/*
+Burst: on a one-shot ParticleEmitter (Emitting and Continuous off, Burst 1), the root of a
+component. Starts it, and removes the instance when the emitter's onFinished event says its cycle
+ended and its particles are gone, so effects made from code clean up after themselves.
+*/
+Burst :: struct {
+	using script: e.Script,
+}
+
+@(init)
+register_Burst :: proc "contextless" () {
+	e.Script_Register(Burst, {
+		ready = proc(self: ^Burst) {
+			if !e.Node_Is(self.node, e.ParticleEmitter) do return
+			emitter := cast(^e.ParticleEmitter)self.node
+			e.Event_Subscribe(&emitter.onFinished, proc(_: ^e.EventSubject, source: rawptr, _: e.EventData, _: rawptr) {
+				emitter := cast(^e.ParticleEmitter)source
+				e.Scene_RemoveComponent(emitter.scene, emitter.id)
+			}, nil)
+			e.ParticleEmitter_Start(emitter)
+		},
+	})
+}
+```
+
+```odin title="scripts/assets.odin (generated; the lines this page uses)"
+package scripts
+
+import e "engine:."
+
+SOUND_SHOOT :: e.SoundAsset{"assets/shoot.wav"}
+COMPONENT_BULLET :: e.ComponentAsset{"components/bullet.component.xml"}
+COMPONENT_SPARKS :: e.ComponentAsset{"components/sparks.component.xml"}
+
+ACTION_SHOOT :: "shoot"
+```
+
+## How it works
+
+- **`e.Scene_AddComponent(scene, component, parent, position)`** builds a copy of the component's
+  node tree, with its scripts, and returns its root. It joins the scene at the start of the next
+  frame, when its scripts get `ready`. Without a parent, `position` is in the world.
+- **Setting up a copy.** The scripts are attached as soon as the copy is made, so
+  `e.Node_GetScript(shot, Bullet)` finds the bullet's script right away and the gun fills in its
+  velocity before its first update.
+- **Component fields** (`e.ComponentAsset` with `export`) show as a dropdown of the project's
+  components in the inspector, so one Gun can fire bullets and another fire rockets. The
+  `COMPONENT_` constants in `assets.odin` work too: `e.Scene_AddComponent(self.scene,
+  COMPONENT_BULLET, position = from)`.
+- **Removing a copy.** `e.Scene_RemoveComponent(scene, id)` takes the instance's root id and removes
+  the whole tree next frame. `done` stops a bullet that hits two things in one frame from being
+  removed twice.
+- **The burst cleans up after itself.** A one-shot emitter fires its `onFinished` event when its
+  last particle dies. `e.Event_Subscribe` attaches a procedure to that event from code, the same
+  thing the inspector's **Listen...** does.
+- **`e.Scene_GetMouseWorldPosition`** converts the mouse from the screen to the world, through the
+  scene's camera.
+
+## Try it
+
+- Aim with the right stick instead of the mouse:
+
+  ```odin
+  // Given: self: ^Gun
+  aim := [2]f32{e.Input_GetGamepadAxis(.RightX), e.Input_GetGamepadAxis(.RightY)}
+  if abs(aim.x) + abs(aim.y) > 0.3 do Gun_Fire(self, e.Node_GetWorldPosition(self.node) + aim * 100)
+  ```
+
+- A spread shot: fire three bullets at angles of -10, 0 and 10 degrees around the aim.
+- Hurt what it hits: look for a script on `hit.other` before removing the bullet, like the
+  `Patroller_Hurt` call in [Enemies that patrol](/examples/patrolling-enemy/).
+- Bigger blasts from the same component: change the emitter's settings on the copy, as the demo's
+  `Effects_Hit` does: `(cast(^e.ParticleEmitter)blood).settings.amount = 48`.
+
+<Aside>
+[Components](/manual/components/) covers editing a component (every copy in every scene changes),
+instances placed in scenes, and **Make Unique**.
+</Aside>

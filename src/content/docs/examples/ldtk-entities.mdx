@@ -1,0 +1,228 @@
+---
+title: Read LDtk entities and fields
+description: Scripts for entities placed in the LDtk level editor - fields that set script values, a key whose entity reference opens a gate, counting entities, reading the IntGrid, and entities made by code. From the demo's forest level.
+sidebar:
+  order: 14
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+With [LDtk levels](/manual/levels/), you place the level's things in LDtk: the player's start,
+coins, enemies, keys, doors, springs, each an **entity** with **fields** of its own. An **LDtkLevel**
+node in the scene turns each entity into a node (a component of yours), and runs the script that
+has the entity's name on it. This page covers what those scripts can read:
+
+- **fields** that set exported script fields by name (a spring's `power`);
+- an **entity reference**: a key whose `opens` field points at a gate, so the level decides which
+  key opens which gate (the demo's `scripts/key.odin`);
+- **finding entities** (how many coins are left) and **reading the IntGrid** (is the player in
+  water?);
+- an entity **made by code** instead of a component (a torch).
+
+## In LDtk and the editor
+
+<Steps>
+
+1. In LDtk, entity types **Key** (a field `opens`, type *Entity ref*), **Gate**, **Spring** (a
+   Float field `power`), **Coin** and **Torch**. An IntGrid layer **Collisions** where value 1 is
+   ground and value 2 is water.
+2. Import the `.ldtk` file (Ctrl+I) and drop it into a scene: an **LDtkLevel** node named **Level**.
+   In its inspector, **Collision**: the Collisions layer; value 1 **Solid**, value 2 **Nothing** (the
+   script reads it).
+3. Components for Key and Spring (an **Area** with a Sprite and a CollisionShape each), Gate (a
+   **StaticBody** with a Sprite and a shape), Coin as in [Collect coins](/examples/collect-coins/). In
+   the LDtkLevel's **Entities** list, set each type's **Becomes** to its component, and leave
+   **Runs** on **Auto**: each runs the script with its name. Leave Torch's **Becomes** on **Auto**:
+   the code below makes it.
+4. Write the scripts below. Their names (`Key`, `Gate`, `Spring`) match the entity types.
+
+</Steps>
+
+## The scripts
+
+```odin title="scripts/key.odin"
+package scripts
+
+import "core:math"
+import e "engine:."
+import sdl "vendor:sdl3"
+
+/*
+Key and Gate: an LDtk entity reference. The key's "opens" field (an EntityRef, drawn as an arrow
+in LDtk) points at a gate; e.LDtk_EntityRefNode finds that gate's node. Taking the key (a
+CharacterMover coming into its Area) opens the gate: it fades away and is removed.
+*/
+Key :: struct {
+	using script: e.Script,
+	sprite: ^e.Node,
+	time: f32,
+	taken: bool,
+}
+
+Gate :: struct {
+	using script: e.Script,
+	// Seconds it takes to fade away
+	fadeTime: f32 `export:"default=0.8 min=0.05 max=5"`,
+	opening: bool,
+	faded: f32,
+}
+
+// Opens a gate: it fades away, then goes
+Gate_Open :: proc(gate: ^Gate) {
+	if gate.opening do return
+	gate.opening = true
+	e.Game_PlaySound(gate.game, SOUND_GATE)
+}
+
+@(init)
+register_Key :: proc "contextless" () {
+	e.Script_Register(Key, {
+		ready = proc(self: ^Key) {
+			self.sprite = e.Node_FindChild(self.node, "Sprite")
+		},
+		update = proc(self: ^Key, _: []sdl.Event, deltaTime: f64) {
+			self.time += f32(deltaTime)
+			if self.sprite != nil do self.sprite.position.y = math.sin(self.time * 3) * 2
+		},
+		collisionEnter = proc(self: ^Key, hit: ^e.Collision) {
+			if self.taken || !e.Node_Is(hit.other, e.CharacterMover) do return
+			self.taken = true
+			e.Game_PlaySound(self.game, SOUND_KEY)
+			// The entity the key's "opens" field points at, in LDtk (nil if none)
+			if gate := e.Node_GetScript(e.LDtk_EntityRefNode(self.node, "opens"), Gate); gate != nil do Gate_Open(gate)
+			e.Scene_RemoveNode(self.scene, self.node.id)
+		},
+	})
+	e.Script_Register(Gate, {
+		update = proc(self: ^Gate, _: []sdl.Event, deltaTime: f64) {
+			if !self.opening do return
+			self.faded += f32(deltaTime) / self.fadeTime
+			self.node.tint.a = u8(255 * clamp(1 - self.faded, 0, 1))
+			if self.faded >= 1 do e.Scene_RemoveNode(self.scene, self.node.id)
+		},
+	})
+}
+```
+
+```odin title="scripts/spring.odin"
+package scripts
+
+import e "engine:."
+
+/*
+Spring: an LDtk entity (an Area). Its LDtk field "power" sets `power`: LDtk fields set the
+exported script fields with the same name. A CharacterMover coming in is thrown upward.
+*/
+Spring :: struct {
+	using script: e.Script,
+	power: f32 `export:"default=600 min=0 max=2000"`,
+}
+
+@(init)
+register_Spring :: proc "contextless" () {
+	e.Script_Register(Spring, {
+		collisionEnter = proc(self: ^Spring, hit: ^e.Collision) {
+			if !e.Node_Is(hit.other, e.CharacterMover) do return
+			(cast(^e.CharacterMover)hit.other).velocity.y = -self.power
+			e.Game_PlaySound(self.game, SOUND_SPRING)
+		},
+	})
+}
+```
+
+```odin title="scripts/level.odin"
+package scripts
+
+import e "engine:."
+
+// The scene's LDtkLevel node (named "Level"), or nil
+Level :: proc(scene: ^e.Scene) -> ^e.LDtkLevelNode {
+	node := e.Scene_FindNode(scene, "Level")
+	if node == nil || !e.Node_Is(node, e.LDtkLevelNode) do return nil
+	return cast(^e.LDtkLevelNode)node
+}
+
+// How many coins are still in the level
+Level_CoinsLeft :: proc(scene: ^e.Scene) -> int {
+	return len(e.LDtk_FindEntityNodes(Level(scene), "Coin"))
+}
+
+// Whether a world position is in water: the Collisions IntGrid's value 2 there
+Level_InWater :: proc(scene: ^e.Scene, at: [2]f32) -> bool {
+	return e.LDtk_IntGridAtPosition(Level(scene), "Collisions", at) == 2
+}
+
+// Torches aren't components: code makes them, a flickering particle emitter each
+@(init)
+register_Torch :: proc "contextless" () {
+	e.LDtk_RegisterEntity("Torch", proc(scene: ^e.Scene, entity: ^e.LDtkEntity) -> ^e.Node {
+		torch := e.CreateParticleEmitter(scene)
+		torch.settings.amount = 12
+		torch.settings.lifetime = 0.6
+		return torch
+	})
+}
+```
+
+```odin title="scripts/assets.odin (generated; the lines this page uses)"
+package scripts
+
+import e "engine:."
+
+SOUND_GATE :: e.SoundAsset{"assets/gate.ogg"}
+SOUND_KEY :: e.SoundAsset{"assets/key.ogg"}
+SOUND_SPRING :: e.SoundAsset{"assets/spring.ogg"}
+LDTK_FOREST :: e.LDtkAsset{"assets/forest/forest.ldtk"}
+```
+
+Using the level helpers from the player's script:
+
+```odin
+// Given: self: ^e.Script, mover: ^e.CharacterMover
+// Slower, floatier movement in water
+if Level_InWater(self.scene, e.Node_GetWorldPosition(mover)) do mover.velocity *= 0.5
+if Level_CoinsLeft(self.scene) == 0 do log.info("every coin found")
+```
+
+## How it works
+
+- **Scripts named like entities** run on them by themselves (the LDtkLevel's **Runs: Auto**): no
+  list to keep. A Key entity's node gets the `Key` script.
+- **Fields set script fields** by name, when the script exports one: LDtk's `power` sets `power`
+  (capitals and underscores don't matter: `move_speed` sets `moveSpeed`). Integers, floats, booleans, strings, enums, colors and points work; a
+  Point becomes the pixel position of the middle of its cell (the demo's snail patrols to one).
+  Each entity has its own values, so one Spring script makes weak and strong springs.
+- **`e.LDtk_EntityRefNode(node, field)`** follows an Entity ref field to the node made for the
+  entity it points at (`e.LDtk_EntityRefNodes` for an array of them). `e.Node_GetScript(node, Gate)`
+  then gets its script; both give `nil` when there's nothing, so the `if` covers a key that points
+  nowhere.
+- **`e.LDtk_FindEntityNodes(level, "Coin")`** lists the nodes made for an entity type (a temporary
+  list, valid this frame).
+- **`e.LDtk_IntGridAtPosition(level, layer, at)`** is the IntGrid value at a world position (0:
+  empty). The demo's enemies use it to stop at ledges.
+- **`e.LDtk_RegisterEntity`** decides what an entity type becomes in code, for types whose
+  **Becomes** is Auto (with no component chosen) or Code.
+- **Other fields** (arrays, tiles) are read from the entity: `entity := e.LDtk_EntityOf(self.node)`
+  and `e.LDtk_FieldValue(entity.fields, "speed", f64(100))`.
+
+## Try it
+
+- Keep LDtk open and save while the game plays from Play: the level updates in the running game,
+  and entities you place spawn with their scripts ([Editing in LDtk while you
+  work](/manual/levels/#editing-in-ldtk-while-you-work)).
+- A lever with a `targets` array of entity refs that opens several doors: loop over
+  `e.LDtk_EntityRefNodes(self.node, "targets")`.
+- Read an entity's LDtk `name` string field:
+
+  ```odin
+  // Given: self: ^e.Script
+  if entity := e.LDtk_EntityOf(self.node); entity != nil {
+  	name := e.LDtk_FieldValue(entity.fields, "name", "nobody")
+  	log.infof("%s is here", name)
+  }
+  ```
+
+<Aside>
+The demo project's forest level (ForestScene, `assets/forest/forest.ldtk`) is built this way:
+hero, coins, snails, boars, bees, key, gate and chest.
+</Aside>

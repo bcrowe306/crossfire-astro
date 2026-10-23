@@ -1,0 +1,108 @@
+---
+/*
+Contribute: reporting bugs (crossfire-editor's issues, with the templates there), suggesting
+features, improving the docs, sending code.
+*/
+import SiteLayout from '../layouts/SiteLayout.astro';
+import { REPOS, ISSUES } from '../site';
+
+const ways = [
+	{ icon: '!', title: 'Report a bug', text: 'Something broke, crashed or did the wrong thing. Tell us what you did and what happened.', href: `${ISSUES}/new?template=bug_report.yml` },
+	{ icon: '+', title: 'Suggest a feature', text: 'Missing something your game needs? Describe the problem it would solve.', href: `${ISSUES}/new?template=feature_request.yml` },
+	{ icon: '¶', title: 'Fix the docs', text: 'Every docs page has an "Edit page" link. Typos and unclear steps are welcome fixes.', href: '#docs' },
+	{ icon: '</>', title: 'Send code', text: 'Pick an issue, or something you want. The engine and editor are plain Odin.', href: '#code' },
+];
+---
+
+<SiteLayout title="Contribute to Crossfire" description="How to report bugs, suggest features, improve the documentation and contribute code to the Crossfire engine and editor.">
+	<section class="cf-section cf-page-head">
+		<div class="cf-wrap">
+			<p class="cf-kicker">Contribute</p>
+			<h1 class="cf-h2">Make it <span class="cf-fire-text">better</span></h1>
+			<p class="cf-lead">
+				Crossfire is open source and early. A clear bug report is worth as much as a pull request.
+				Here's how to help.
+			</p>
+		</div>
+	</section>
+
+	<section class="cf-wrap cf-grid cf-contrib-ways">
+		{ways.map((w) => (
+			<a class="cf-card" href={w.href}>
+				<span class="cf-card-icon">{w.icon}</span>
+				<h3>{w.title}</h3>
+				<p>{w.text}</p>
+			</a>
+		))}
+	</section>
+
+	<section class="cf-wrap cf-prose">
+		<h2 id="bugs">Reporting bugs</h2>
+		<p>
+			Bugs go to the <a href={ISSUES}>issues of crossfire-editor</a>, the engine's too (the editor
+			is where you'd see them). <a href={`${ISSUES}?q=is%3Aissue`}>Search first</a>: someone may
+			have reported it already, and a thumbs-up or an extra detail helps. A good report has:
+		</p>
+		<ul>
+			<li><strong>The version</strong>: Help › About shows it (like <code>v0.1.0-dev.49</code>), and your system (Linux distribution, Windows or macOS version, GPU).</li>
+			<li><strong>The steps</strong> to make it happen, from opening the editor: the smallest steps that still do it.</li>
+			<li><strong>What you expected</strong>, and <strong>what happened</strong> instead.</li>
+			<li><strong>The Console and Output tabs' text</strong> (the bottom panel), and for a crash what the terminal printed if you started the editor from one.</li>
+			<li>A <strong>project</strong> that shows it, if you can share one: File › Export Project Archive makes a single file of it.</li>
+		</ul>
+		<p>Security problems: please don't open a public issue; email the maintainer (the address on the GitHub profile) instead.</p>
+
+		<h2 id="features">Suggesting features</h2>
+		<p>
+			Open a <a href={`${ISSUES}/new?template=feature_request.yml`}>feature request</a> and start
+			with the problem: what you're making and what gets in the way. "A way to make enemies follow
+			a path around walls" leads to a better design than "add A*". Look at
+			the <a href="/manual/">manual</a> first: the engine may do it already.
+		</p>
+
+		<h2 id="docs">Improving the docs</h2>
+		<ul>
+			<li><strong>The editor manual</strong> is Markdown in the editor's repository, <a href={`${REPOS.editor}/tree/main/docs/manual`}>docs/manual</a>; each manual page's "Edit page" link goes straight to its file.</li>
+			<li><strong>The engine API reference</strong> is generated from the engine's doc comments: fix it in the engine's source. Every example in a doc comment must compile.</li>
+			<li><strong>Getting started, the examples and the rest of this site</strong> live in <a href={REPOS.website}>crossfire-astro</a> (Astro and Starlight).</li>
+		</ul>
+		<p>Code examples on this site are type-checked against the engine on every build, so a broken example fails the build instead of reaching you.</p>
+
+		<h2 id="code">Contributing code</h2>
+		<p>The engine and the editor are separate repositories, checked out side by side:</p>
+		<pre><code>mkdir crossfire && cd crossfire
+git clone https://github.com/bcrowe306/crossfire-engine odin_sdl_engine
+git clone https://github.com/bcrowe306/crossfire-editor odin_sdl_editor
+cd odin_sdl_editor
+task setup    # submodules, STB, Box2D (once)
+task run      # build and run the editor
+task verify   # type-check and unit tests</code></pre>
+		<p>
+			You need <a href="https://odin-lang.org/docs/install/">Odin</a> (the version CI uses: <code>dev-2026-10</code>),{' '}
+			<a href="https://taskfile.dev">Task</a>, git, and CMake for the static SDL. The full steps per
+			system are in <a href="/getting-started/from-source/">building from source</a>.
+		</p>
+		<h3>Before you open a pull request</h3>
+		<ul>
+			<li><strong>Tests pass</strong>: <code>task verify</code> in the editor, <code>odin test . -define:ODIN_TEST_FAIL_ON_BAD_MEMORY=true</code> in the engine (a leak fails a test). Interactive changes get a UI test script (<code>tests/ui/</code>, run with <code>task test:ui</code>).</li>
+			<li><strong>Public code is documented</strong> with Odin-style doc comments, examples included (they're checked).</li>
+			<li><strong>Follow the style</strong>: <code>PascalCase</code> types, <code>Type_Action</code> procedures, <code>camelCase</code> fields, tabs. Each repository's <code>CLAUDE.md</code> describes its architecture and rules; read it before a bigger change.</li>
+			<li><strong>One change per pull request</strong>, with a description of what and why. For something big, open an issue to talk about it first.</li>
+		</ul>
+		<p>
+			By contributing you agree your contribution is licensed under the project's{' '}
+			<a href="/about/#license">MIT license</a>.
+		</p>
+
+		<h2>Be kind</h2>
+		<p>
+			Assume good intent, keep criticism about the code, help newcomers. Harassment of any kind
+			isn't welcome in issues, pull requests or anywhere else the project lives.
+		</p>
+	</section>
+	<div style="height: 5rem"></div>
+</SiteLayout>
+
+<style>
+	.cf-contrib-ways { margin-top: 0; margin-bottom: 1rem; }
+</style>

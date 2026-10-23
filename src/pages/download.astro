@@ -1,0 +1,129 @@
+---
+/*
+Download: the latest editor release (scripts/release-info.mjs: R2's latest.json, else GitHub),
+a card per platform with its files; the visitor's own platform is shown first.
+*/
+import SiteLayout from '../layouts/SiteLayout.astro';
+import release from '../data/generated/release.json';
+import { REPOS } from '../site';
+
+type File = { name: string; size: number; url: string; platform: string; kind: string; label: string; note: string };
+const files = (release.files ?? []) as File[];
+const platforms = [
+	{ id: 'linux', name: 'Linux', arch: 'x86_64', needs: 'A Vulkan driver. glibc 2.31 or newer (Ubuntu 20.04+, Fedora, Arch, Steam Deck).' },
+	{ id: 'windows', name: 'Windows', arch: 'x86_64', needs: 'Windows 10 or 11 with a Vulkan driver (any recent GPU driver has one).' },
+	{ id: 'macos', name: 'macOS', arch: 'Apple Silicon', needs: 'macOS 15 or newer. Vulkan comes bundled (MoltenVK).' },
+];
+const order = ['installer', 'appimage', 'dmg', 'archive'];
+const mb = (n: number) => `${(n / 1024 / 1024).toFixed(0)} MB`;
+const date = release.date ? new Date(release.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
+---
+
+<SiteLayout title="Download Crossfire" description="Download the Crossfire Editor for Linux, Windows and macOS: the latest build, with the engine and a demo project inside.">
+	<section class="cf-section cf-page-head">
+		<div class="cf-wrap">
+			<p class="cf-kicker">Download</p>
+			<h1 class="cf-h2">Get the <span class="cf-fire-text">editor</span></h1>
+			{release.tag ? (
+				<p class="cf-lead">
+					<strong>{release.tag}</strong>{date && <>, built {date}</>}. The editor comes with the engine, a
+					demo project and prebuilt players: games without scripts play and export with nothing
+					else installed. <a href={release.notes}>What's in this build</a>.
+				</p>
+			) : (
+				<p class="cf-lead">No build has been published yet. See the <a href={`${REPOS.editor}/releases`}>releases on GitHub</a>.</p>
+			)}
+			{release.prerelease && (
+				<p class="cf-dl-warning">
+					These are development builds: everything here works, but things change between builds,
+					and project files may move to a newer format. Version 1.0 will be the first stable release.
+				</p>
+			)}
+		</div>
+	</section>
+
+	<section class="cf-wrap cf-dl-grid">
+		{platforms.map((p) => {
+			const mine = files.filter((f) => f.platform === p.id).sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind));
+			return (
+				<article class="cf-dl-card" data-platform={p.id}>
+					<p class="cf-dl-yours">Your system</p>
+					<h2>{p.name}</h2>
+					<p class="cf-dl-arch">{p.arch}</p>
+					{mine.length === 0 && <p class="cf-dl-none">Not in this build.</p>}
+					{mine.map((f, i) => (
+						<a class={`cf-btn ${i === 0 ? 'cf-btn-fire' : 'cf-btn-ghost'} cf-dl-btn`} href={f.url} download>
+							{f.label} <small>{mb(f.size)}</small>
+						</a>
+					))}
+					<ul class="cf-dl-notes">
+						{mine.map((f) => <li><b>{f.label}:</b> {f.note}.</li>)}
+						<li><b>Needs:</b> {p.needs}</li>
+					</ul>
+					<a class="cf-feature-link" href={`/getting-started/${p.id}/`}>Install on {p.name} →</a>
+				</article>
+			);
+		})}
+	</section>
+
+	<section class="cf-section cf-wrap cf-prose">
+		<h2>Writing scripts</h2>
+		<p>
+			Games with scripts are compiled with Odin. The editor installs the right version for you
+			(<strong>Settings › Toolchain › Install Odin</strong>); you also need your system's linker:
+			clang on Linux, the Xcode command line tools on macOS (<code>xcode-select --install</code>),
+			or the Visual Studio Build Tools on Windows. The <a href="/getting-started/">getting started</a> pages walk through it.
+		</p>
+		<h2>Older builds and the source</h2>
+		<p>
+			Every build is on <a href={`${REPOS.editor}/releases`}>GitHub's releases page</a>, with its
+			notes. The editor, the engine and this site are open source under the MIT license:{' '}
+			<a href={REPOS.editor}>crossfire-editor</a>, <a href={REPOS.engine}>crossfire-engine</a>.
+			To build them yourself, see <a href="/getting-started/from-source/">building from source</a>.
+		</p>
+	</section>
+
+	<script>
+		// The visitor's platform first, marked
+		const ua = navigator.userAgent.toLowerCase();
+		const mine = ua.includes('mac') ? 'macos' : ua.includes('win') ? 'windows' : ua.includes('linux') ? 'linux' : null;
+		const card = mine && document.querySelector(`.cf-dl-card[data-platform="${mine}"]`);
+		if (card) {
+			card.classList.add('is-yours');
+			card.parentElement?.prepend(card);
+		}
+	</script>
+</SiteLayout>
+
+<style is:global>
+	.cf-dl-warning {
+		max-width: 46rem;
+		padding: 0.9rem 1.1rem;
+		border-left: 3px solid var(--cf-gold);
+		background: rgba(255, 182, 39, 0.07);
+		color: #d9cbb4;
+		font-size: 0.95rem;
+	}
+	.cf-dl-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.4rem; }
+	@media (max-width: 62rem) { .cf-dl-grid { grid-template-columns: 1fr; } }
+	.cf-dl-card {
+		--cut: 16px;
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		gap: 0.8rem;
+		padding: 2rem 1.8rem;
+		background: var(--cf-steel);
+		clip-path: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut));
+		box-shadow: inset 0 0 0 1px var(--cf-line);
+	}
+	.cf-dl-card.is-yours { box-shadow: inset 0 0 0 2px var(--cf-orange); }
+	.cf-dl-card h2 { font-family: var(--cf-display); text-transform: uppercase; font-size: 2rem; margin: 0; }
+	.cf-dl-arch { margin: -0.6rem 0 0.4rem; color: #8d8780; font-family: var(--sl-font-mono); font-size: 0.85rem; }
+	.cf-dl-yours { display: none; margin: 0; font-family: var(--sl-font-mono); font-size: 0.75rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--cf-orange); }
+	.cf-dl-card.is-yours .cf-dl-yours { display: block; }
+	.cf-dl-btn { justify-content: space-between; }
+	.cf-dl-notes { margin: 0.6rem 0 0; padding-left: 1.1rem; color: #a39d95; font-size: 0.9rem; display: grid; gap: 0.35rem; }
+	.cf-dl-notes b { color: #d6d0c8; font-weight: 600; }
+	.cf-dl-none { color: #8d8780; }
+</style>

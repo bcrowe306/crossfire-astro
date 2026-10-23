@@ -1,0 +1,136 @@
+---
+title: Scene changes, transitions and a pause menu
+description: A door that takes the player to the next level with a fade or a wipe, a pause menu opened over the level, and a restart, from scripts and from Button actions.
+sidebar:
+  order: 10
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+Games move between scenes: title, levels, game over. This page has a **Door** (an Area that sends
+the player to a scene picked in the inspector, with a transition of its own) and a **PauseControl**
+script that opens a pause menu scene **over** the level, which freezes under it. The pause menu
+itself needs no code: its Buttons have actions.
+
+## The scenes
+
+<Steps>
+
+1. **The transition everyone uses**: Project Settings > General > **Scene change** (Fade, a Wipe,
+   Circle), **Change time** and **Change color**. Every change by an action uses it; scripts can
+   pass another.
+2. **A door**: in the level, an **Area** with a CollisionShape where the exit is, with the `Door`
+   script. Its **Next** field is a dropdown of the project's scenes.
+3. **The pause menu**: a scene **PauseMenu** with a half-transparent **Panel** (Anchor Center,
+   Layout Column) and two **Buttons**:
+   - **Resume**, **Action**: *Close this (back to the scene under it)*;
+   - **Quit to Title**, **Action**: *Go to Title*.
+4. **Opening it**: give any node of the level (the player, say) the `PauseControl` script. It
+   uses the `ui_cancel` action (Escape, the gamepad's East button).
+
+</Steps>
+
+## The scripts
+
+```odin title="scripts/door.odin"
+package scripts
+
+import e "engine:."
+
+/*
+Door: on an Area. The player (a CharacterMover) coming in takes the game to `next`, with this
+door's own transition. Once: a transition takes a moment, and the player is still inside.
+*/
+Door :: struct {
+	using script: e.Script,
+	// kind=scene: the inspector offers the project's scenes
+	next: string `export:"kind=scene"`,
+	transition: e.TransitionKind `export:"default=Wipe_Left"`,
+	seconds: f32 `export:"default=0.8 min=0 max=5"`,
+	used: bool,
+}
+
+@(init)
+register_Door :: proc "contextless" () {
+	e.Script_Register(Door, {
+		collisionEnter = proc(self: ^Door, hit: ^e.Collision) {
+			if self.used || self.next == "" || !e.Node_Is(hit.other, e.CharacterMover) do return
+			self.used = true
+			e.Game_PlaySound(self.game, SOUND_DOOR)
+			// false (with a warning in the Console) when there's no scene of that name
+			e.Game_ChangeScene(self.game, self.next, e.Transition{kind = self.transition, duration = self.seconds, color = {0, 0, 0, 255}})
+		},
+	})
+}
+```
+
+```odin title="scripts/pause_control.odin"
+package scripts
+
+import e "engine:."
+import sdl "vendor:sdl3"
+
+/*
+PauseControl: on any node of a level. ui_cancel opens the PauseMenu scene over the level, which
+stops updating (its scripts, physics and animations wait) but is still drawn under the menu.
+R restarts the level.
+*/
+PauseControl :: struct {
+	using script: e.Script,
+	menu: string `export:"kind=scene default=PauseMenu"`,
+}
+
+@(init)
+register_PauseControl :: proc "contextless" () {
+	e.Script_Register(PauseControl, {
+		update = proc(self: ^PauseControl, _: []sdl.Event, _: f64) {
+			// Mid-transition: leave the keys alone
+			if e.Game_IsChangingScene(self.game) do return
+			if e.Input_IsActionJustPressed(ACTION_UI_CANCEL) do e.Game_PushScene(self.game, self.menu)
+			// The same scene again: it starts fresh, as its file made it
+			if e.Input_IsKeyJustPressed(.R) do e.Game_ChangeScene(self.game, self.scene.name)
+		},
+	})
+}
+```
+
+```odin title="scripts/assets.odin (generated; the lines this page uses)"
+package scripts
+
+import e "engine:."
+
+SOUND_DOOR :: e.SoundAsset{"assets/door.wav"}
+
+ACTION_UI_CANCEL :: "ui_cancel"
+```
+
+## How it works
+
+- **`e.Game_ChangeScene(game, name, transition)`** covers the screen, switches scenes under the
+  cover, and uncovers the new one. Without the last argument it uses the project's transition;
+  `e.Transition{kind = .None}` changes at once.
+- **Scenes start fresh.** Entering a scene builds it again from its file: the level is as you made
+  it in the editor, every time. What must carry over (score, health, a checkpoint) lives in a
+  [global script](/examples/save-and-load/).
+- **`e.Game_PushScene(game, name)`** opens a scene over the current one. The one under it waits
+  (it's drawn but doesn't update) until the top one closes, with a Button's *Close this* action or
+  `e.Game_PopScene(game)`. `pauseBelow = false` keeps both running (a HUD scene over a level).
+- **`e.Game_IsChangingScene`** is true while a transition runs. Ignoring input then keeps a second
+  press from starting another change.
+- **`kind=scene`** on a string field makes the inspector offer the project's scenes; an enum field
+  (`e.TransitionKind`) becomes a dropdown of its values.
+- `used` makes the door fire once: the player stays inside the Area during the transition.
+
+## Try it
+
+- Quit from code (a "Quit" key on the title): `e.Game_RunAction(self.game, "quit")`. The same
+  procedure runs any Button action: `"scene:Level2"`, `"push:Shop"`, `"pop"`.
+- A loading screen for big levels: a scene with a **ProgressBar** set to **Shows loading**, chosen
+  in Project Settings > General > **Loading scene** ([Loading screens](/manual/scene-changes/#loading-screens)).
+- Do something as the new scene starts: a global's `sceneChanged` hook gets every change
+  (`scene.name` says which), and each scene's root nodes fire **onEnter**.
+
+<Aside>
+[Scene changes](/manual/scene-changes/) has the whole list: transitions, scenes over scenes, loading
+screens and the Button actions.
+</Aside>

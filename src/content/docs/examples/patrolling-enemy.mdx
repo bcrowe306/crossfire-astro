@@ -1,0 +1,238 @@
+---
+title: Enemies that patrol and get hurt
+description: An enemy that walks back and forth, hurts the player on touch, takes damage when stomped, flashes red, is knocked back and fades out when defeated. From the demo's snail and boar.
+sidebar:
+  order: 4
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+An enemy that walks between where it was placed and a patrol point, turning at each end. Touching
+it from the side hurts the player and knocks them back; landing on it from above (a stomp) hurts
+the enemy instead, which flashes red, gets pushed away and, out of health, fades out and goes.
+It's a cut-down version of the demo's forest enemies (`scripts/enemy.odin`, `snail.odin`,
+`boar.odin`).
+
+Two scripts: **Health** on the player, and **Patroller** on each enemy.
+
+## The scene
+
+<Steps>
+
+1. The player: a **CharacterMover** named **Player** with the
+   [platformer script](/examples/platformer-character/), plus a second script, **Health** (the
+   inspector's **Add script**: a node can run several).
+2. The enemy, as a [component](/manual/components/): an **Area** named **Snail**, with an
+   AnimatedSprite **Sprite** (animation **walk**, drawn facing left) and a **CollisionShape**
+   (Rectangle) for its body. Give it the `Patroller` script and save it as a component.
+3. Place enemies. For each, set **Patrol** in the inspector: the far end of its walk, in the same
+   space as its position (another point on its floor).
+4. Each enemy's **Player** field finds the player by path: `../Player` is a sibling named Player.
+   Pick another node in the dropdown if yours is elsewhere.
+5. Import `hurt.ogg` and `stomp.ogg`.
+
+</Steps>
+
+## The scripts
+
+```odin title="scripts/health.odin"
+package scripts
+
+import e "engine:."
+import sdl "vendor:sdl3"
+
+/*
+Health: on the player's CharacterMover (as a second script). Hit points, a moment of safety after
+each hit (blinking), and a knockback away from what hit it. At 0 the scene starts again.
+*/
+Health :: struct {
+	using script: e.Script,
+	maxHealth: int `export:"default=3 min=1 max=20"`,
+	// Seconds of safety after a hit
+	safeTime: f32 `export:"default=1 min=0 max=5"`,
+	health: int,
+	safe: f32,
+}
+
+// Hurts it, hit by something at `fromX` (world). Nothing while it's safe after the last hit
+Health_Hurt :: proc(self: ^Health, damage: int, fromX: f32) {
+	if self.safe > 0 || self.health <= 0 do return
+	self.health -= damage
+	self.safe = self.safeTime
+	e.Game_PlaySound(self.game, SOUND_HURT)
+	// Knocked up and away
+	if e.Node_Is(self.node, e.CharacterMover) {
+		mover := cast(^e.CharacterMover)self.node
+		away: f32 = e.Node_GetWorldPosition(mover).x < fromX ? -1 : 1
+		mover.velocity = {away * 250, -250}
+	}
+	if self.health <= 0 do e.Game_ChangeScene(self.game, self.scene.name)
+}
+
+@(init)
+register_Health :: proc "contextless" () {
+	e.Script_Register(Health, {
+		ready = proc(self: ^Health) {
+			self.health = self.maxHealth
+		},
+		update = proc(self: ^Health, _: []sdl.Event, deltaTime: f64) {
+			self.safe = max(self.safe - f32(deltaTime), 0)
+			// Blink while safe
+			self.node.visible = self.safe <= 0 || int(self.safe * 10) % 2 == 0
+		},
+	})
+}
+```
+
+```odin title="scripts/patroller.odin"
+package scripts
+
+import "core:math"
+import e "engine:."
+import sdl "vendor:sdl3"
+
+/*
+Patroller: on an Area. Walks between where it starts and `patrol`, turning at each end. The
+player inside its Area from above is a stomp (it takes a hit, the player bounces); otherwise the
+player is hurt (its Health script). Hurt, it flashes red and is knocked back; at no health it
+fades out and is removed.
+*/
+Patroller :: struct {
+	using script: e.Script,
+	// The far end of its walk (same space as its position)
+	patrol: [2]f32 `export:""`,
+	speed: f32 `export:"default=40 min=0 max=400"`,
+	health: int `export:"default=2 min=1 max=20"`,
+	player: ^e.CharacterMover `export:"default=../Player"`,
+
+	sprite: ^e.Node,
+	home: [2]f32,
+	heading: f32,
+	// Pushed by a hit, px/s (fades by itself)
+	knockback: f32,
+	// Seconds left: of the red flash, of fading out, of ignoring the player after a stomp
+	flash, dying, cooldown: f32,
+}
+
+// Hits it from `fromX` (world). Returns true when that defeated it
+Patroller_Hurt :: proc(self: ^Patroller, damage: int, fromX: f32) -> bool {
+	if self.health <= 0 do return false
+	self.health -= damage
+	self.flash = 0.15
+	self.knockback = e.Node_GetWorldPosition(self.node).x >= fromX ? 160 : -160
+	if self.health <= 0 do self.dying = 0.5
+	return self.health <= 0
+}
+
+@(init)
+register_Patroller :: proc "contextless" () {
+	e.Script_Register(Patroller, {
+		ready = proc(self: ^Patroller) {
+			self.sprite = e.Node_FindChild(self.node, "Sprite")
+			self.home = self.node.position
+			if self.patrol == {} do self.patrol = self.home
+			self.heading = self.patrol.x >= self.home.x ? 1 : -1
+			if e.Node_Is(self.sprite, e.AnimatedSprite) {
+				e.AnimationPlayer_Play(&(cast(^e.AnimatedSprite)self.sprite).animation, "walk")
+			}
+		},
+		update = proc(self: ^Patroller, _: []sdl.Event, deltaTime: f64) {
+			dt := f32(deltaTime)
+			self.flash = max(self.flash - dt, 0)
+			self.cooldown = max(self.cooldown - dt, 0)
+			// Red while flashing; tint multiplies the colors of the node and its children
+			self.node.tint = self.flash > 0 ? {255, 90, 90, 255} : {255, 255, 255, 255}
+
+			// Knocked back: slides, slowing down
+			if abs(self.knockback) > 5 {
+				self.node.position.x += self.knockback * dt
+				self.knockback *= math.exp(-8 * dt)
+			}
+
+			// Defeated: fades out, then goes
+			if self.dying > 0 {
+				self.dying -= dt
+				self.node.tint.a = u8(255 * clamp(self.dying * 2, 0, 1))
+				if self.dying <= 0 do e.Scene_RemoveNode(self.scene, self.node.id)
+				return
+			}
+
+			// Walk, turning at the ends
+			left, right := min(self.home.x, self.patrol.x), max(self.home.x, self.patrol.x)
+			x := self.node.position.x
+			if (self.heading > 0 && x >= right) || (self.heading < 0 && x <= left) do self.heading = -self.heading
+			self.node.position.x += self.heading * self.speed * dt
+			// The sheet faces left: mirror it when walking right
+			if self.sprite != nil do self.sprite.scale.x = self.heading > 0 ? -1 : 1
+
+			// The player inside its Area
+			player := self.player
+			if player == nil || self.cooldown > 0 || !e.Node_Is(self.node, e.Area) do return
+			if !e.PhysicsBody_IsInArea(player, cast(^e.Area)self.node) do return
+			feet := e.Node_GetWorldPosition(player)
+			if player.velocity.y > 0 && feet.y < e.Node_GetWorldPosition(self.node).y {
+				// Falling onto it: a stomp
+				self.cooldown = 0.3
+				player.velocity.y = -260
+				e.Game_PlaySound(self.game, SOUND_STOMP)
+				Patroller_Hurt(self, 1, feet.x)
+			} else if health := e.Node_GetScript(player, Health); health != nil {
+				Health_Hurt(health, 1, e.Node_GetWorldPosition(self.node).x)
+			}
+		},
+	})
+}
+```
+
+```odin title="scripts/assets.odin (generated; the lines this page uses)"
+package scripts
+
+import e "engine:."
+
+SOUND_HURT :: e.SoundAsset{"assets/hurt.ogg"}
+SOUND_STOMP :: e.SoundAsset{"assets/stomp.ogg"}
+```
+
+## How it works
+
+- **The patrol** is two numbers: `home` (where it started) and `patrol`, set per enemy in the
+  inspector (or in LDtk: a Point field named `patrol` sets it, see
+  [Read LDtk entities](/examples/ldtk-entities/)). It turns when it passes either end.
+- **Touching the player** is asked of the physics each frame: `e.PhysicsBody_IsInArea(player,
+  area)`. That keeps working while the player stays inside, unlike `collisionEnter`, which comes
+  once.
+- **Stomp or hit.** If the player is falling (`velocity.y > 0`, y points down) and its feet are
+  above the enemy's middle, it's a stomp. `cooldown` keeps one landing from counting twice.
+- **`e.Node_GetScript(player, Health)`** finds the Health script on the player node, or `nil`.
+  Scripts talk to each other this way, without a shared list.
+- **The knockback on the player** sets its velocity. The platformer script sets `velocity.x`
+  again every frame, so the sideways push is short; the demo's hero keeps a knockback timer and
+  skips its own running while it lasts.
+- **The flash** uses `tint`, which multiplies the colors of the node and everything under it. The
+  fade uses its alpha.
+- **`e.Scene_RemoveNode`** removes the enemy and its children at the start of the next frame.
+- **`e.Game_ChangeScene(game, scene.name)`** restarts the current scene, with the project's
+  transition ([Scene changes](/manual/scene-changes/)).
+
+## Try it
+
+- Hurt it with a sword or a bullet: call `Patroller_Hurt` on what a hit finds.
+
+  ```odin
+  // Given: target: ^e.Node, attacker: ^e.Node
+  if enemy := e.Node_GetScript(target, Patroller); enemy != nil {
+  	Patroller_Hurt(enemy, 1, e.Node_GetWorldPosition(attacker).x)
+  }
+  ```
+
+- A charger: when the player is within 150 px on its level, set `heading` toward them and
+  triple the speed (the demo's `boar.odin`).
+- Blood, a hitstop and a camera shake on each hit: [Camera follow, shake and
+  hitstop](/examples/camera-shake-hitstop/).
+- Don't walk off ledges: before stepping, check there's ground ahead. With an LDtk level, the demo
+  asks its IntGrid: `e.LDtk_IntGridAtPosition(level, "Collisions", ahead) != 0`.
+
+<Aside>
+In the demo, the enemies share one `Enemy` struct (health, flash, knockback, dying) that each
+enemy's script embeds as a field, so the snail, boar and bee only write how they move.
+</Aside>

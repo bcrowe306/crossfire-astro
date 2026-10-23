@@ -1,0 +1,182 @@
+---
+title: Your first game
+description: Make a project, put a sprite in a scene, move it with a script and input actions, play it, and export it.
+sidebar:
+  order: 4
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+In about fifteen minutes you'll have a ship that flies around the screen with the arrow keys,
+WASD or a gamepad, goes faster while you hold Shift, and runs as a program of its own.
+
+You need the editor [installed](/getting-started/), and for the script, **Odin** and a **linker**
+(Edit > Settings... > Toolchain shows whether they're there; the install pages say how to get
+them).
+
+## 1. Make a project
+
+<Steps>
+
+1. **File > New Project** (Ctrl+N).
+2. **Name**: `MyFirstGame`. **Location**: a folder for your games.
+3. **Create**.
+
+</Steps>
+
+The project has one scene, **Main**, with one node, **World**. The red outline in the viewport is
+the **game area**: what the player's screen shows (1280 x 720 pixels).
+
+## 2. Add a sprite
+
+<Steps>
+
+1. Click **+** at the top of the browser (Ctrl+I) and pick a PNG: a ship, a character, anything.
+   It's copied into the project's `assets/` folder. This page calls it `ship.png`.
+2. Click **World** in the scene tree, then drag the image from the browser into the middle of the
+   red game area.
+
+</Steps>
+
+A **Sprite** node named after the image appears inside World. Rename it **Ship** (double-click
+its name in the scene tree). [Scenes and nodes](/manual/scenes-and-nodes/) covers moving, rotating
+and scaling it in the viewport.
+
+## 3. Add an input action
+
+New projects already have six input actions, `ui_left`, `ui_right`, `ui_up`, `ui_down`,
+`ui_accept` and `ui_cancel`, bound to the arrow keys, WASD, a gamepad's d-pad and left stick, and
+more. Add one of your own for the boost:
+
+<Steps>
+
+1. **File > Project Settings...**, tab **Input**.
+2. Type `boost` in the **New action** box under the list and press **Add**.
+3. With `boost` selected, press **Press a key or button** and press **Left Shift**. Choose
+   **Gamepad > RightShoulder** too, if you have a gamepad.
+4. **Apply**.
+
+</Steps>
+
+The editor writes a constant for every action into `scripts/assets.odin`, so code says
+`ACTION_BOOST` rather than `"boost"`, and a typo is a compile error. See [Input](/manual/input/).
+
+## 4. Write the script
+
+<Steps>
+
+1. Select **Ship**. In the inspector's **Script** section press **New...**.
+2. **Name**: `Player`. Leave **Kind** on **Node script**. **Create**.
+3. The editor writes `scripts/player.odin`, attaches it to Ship and opens it in a code tab.
+   Replace its contents with this:
+
+</Steps>
+
+```odin title="scripts/player.odin"
+package scripts
+
+import "core:math"
+import e "engine:."
+import sdl "vendor:sdl3"
+
+/*
+Player: flies its node around the screen with the ui_* input actions (arrows, WASD, a
+gamepad's d-pad or left stick), faster while "boost" is held, and turns it to face where it
+goes.
+*/
+Player :: struct {
+	using script: e.Script,
+	// Pixels per second (set it in the inspector)
+	speed: f32 `export:"default=300 min=0 max=1000"`,
+	// How much faster it goes while boosting
+	boost: f32 `export:"default=2 min=1 max=5"`,
+}
+
+@(init)
+register_Player :: proc "contextless" () {
+	e.Script_Register(Player, {
+		update = proc(self: ^Player, events: []sdl.Event, dt: f64) {
+			// A direction from four actions: x right, y down, at most 1 long
+			direction := e.Input_GetVector(ACTION_UI_LEFT, ACTION_UI_RIGHT, ACTION_UI_UP, ACTION_UI_DOWN)
+			speed := self.speed
+			if e.Input_IsActionPressed(ACTION_BOOST) do speed *= self.boost
+			// dt is the frame's length in seconds: the same speed on any computer
+			self.node.position += direction * speed * f32(dt)
+			// Stay inside the game area
+			self.node.position.x = clamp(self.node.position.x, 0, self.game.size.x)
+			self.node.position.y = clamp(self.node.position.y, 0, self.game.size.y)
+			// Face the way it flies (0 degrees is up; rotation turns clockwise)
+			if direction != {} do self.node.rotation = math.to_degrees(math.atan2(direction.x, -direction.y))
+		},
+	})
+}
+```
+
+It uses these constants from the generated `scripts/assets.odin` (yours lists every asset and
+action of your project; don't edit it, the editor rewrites it):
+
+```odin title="scripts/assets.odin (generated; the lines this page uses)"
+package scripts
+
+import e "engine:."
+
+TEXTURE_SHIP :: e.TextureAsset{"assets/ship.png"}
+
+ACTION_UI_LEFT :: "ui_left"
+ACTION_UI_RIGHT :: "ui_right"
+ACTION_UI_UP :: "ui_up"
+ACTION_UI_DOWN :: "ui_down"
+ACTION_BOOST :: "boost"
+```
+
+What the parts do:
+
+- `using script: e.Script` must be the struct's first field. It gives the script `self.node` (the
+  Ship), `self.scene` and `self.game`.
+- `speed` and `boost` have an `export:""` tag, so they show in the inspector, where each node using
+  the script can set its own values.
+- `@(init) register_Player` runs when the game starts and tells the engine about the script.
+  `update` runs every frame.
+
+Save (Ctrl+S). The editor builds the scripts (Ctrl+B does it too); errors go to the **Output**
+tab. After the build, the inspector shows **Speed** and **Boost** under the script. More in
+[Scripts](/manual/scripts/).
+
+## 5. Play
+
+Press **F5** (or the toolbar's play button). The first build of a project takes a few seconds.
+Fly around; hold Shift. Messages from the game (`log.info` in a script) show in the **Console**
+tab. Close the game's window or press **Shift+F5** to stop.
+
+Try changing **Speed** in the inspector and playing again, or saving the script while the game
+runs: it rebuilds and carries on where it was ([hot reload](/manual/scripts-node-types-hot-reload/)).
+
+## 6. Export
+
+<Steps>
+
+1. **File > Project Settings...**, tab **Export**.
+2. Tick the target for your computer: **Linux x86_64**, **Windows x86_64** or **macOS ARM64**.
+   (Games with scripts export only for the system you're on.)
+3. Press **Export** beside the target.
+
+</Steps>
+
+The **Output** tab shows the build, and the Console says where it went: `export/linux_x64` (or
+`export/windows_x64`, `export/macos_arm64`) inside your project. It's one program,
+`MyFirstGame` (`MyFirstGame.exe`, `MyFirstGame.app`), with the scenes and images inside it. Give
+it to anyone: they don't need the editor or anything else to run it.
+
+[Exporting](/manual/exporting/) covers the other targets (the web too), the settings and the
+command line.
+
+## Next
+
+<Aside type="tip">
+The [examples](/examples/) are complete scripts for the next steps: a platformer character,
+coins, enemies, a HUD, sounds, saving.
+</Aside>
+
+- [Scenes and nodes](/manual/scenes-and-nodes/): the scene tree, the viewport, every node kind.
+- [Physics](/manual/physics/): bodies, collisions, a character that stands on floors.
+- [Components](/manual/components/): reuse a group of nodes (an enemy, a coin) in many places.

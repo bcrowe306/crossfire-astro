@@ -1,0 +1,59 @@
+---
+title: Examples
+description: Complete, working scripts for common game tasks - movement, platforming, pickups, enemies, spawning, camera, saves, HUDs, sound, scene changes, state machines, dialogue, tweens and LDtk.
+sidebar:
+  order: 0
+  label: Overview
+---
+
+import { Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+Each example solves one common game task with complete scripts you can paste into a project:
+what it does, how to set the scene up in the editor, the code, what each part does, and changes
+to try. Every code block on these pages is compiled against the engine when the site is built.
+
+Most of them come from the editor's demo project (`examples/demo_project`, opened the first time
+the editor starts): the space game and the forest platformer. If you haven't written a script
+yet, start with [Your first game](/getting-started/first-game/), then [Scripts](/manual/scripts/)
+in the manual.
+
+<Aside type="note">
+Scripts use constants from your project's generated `scripts/assets.odin` (`SOUND_COIN`,
+`ACTION_JUMP`...). Each page shows the lines it needs; your project has them once you've imported
+the files and added the input actions. Don't copy that block into your project: the editor writes
+the file.
+</Aside>
+
+## Moving
+
+<CardGrid>
+	<LinkCard title="Move a character with input actions" href="/examples/move-with-input/" description="Top-down movement with easing, walls and a dash, on keys and gamepads." />
+	<LinkCard title="A platformer character" href="/examples/platformer-character/" description="Running, jumping, coyote time, a jump buffer, short hops, one-way platforms." />
+	<LinkCard title="Camera follow, shake and hitstop" href="/examples/camera-shake-hitstop/" description="A look-ahead camera inside the level's bounds, zoom, and hits you can feel." />
+</CardGrid>
+
+## Gameplay
+
+<CardGrid>
+	<LinkCard title="Collect coins" href="/examples/collect-coins/" description="Areas, a global count, a sound, a sparkle, a label." />
+	<LinkCard title="Enemies that patrol and get hurt" href="/examples/patrolling-enemy/" description="Patrols, stomps, damage, knockback, a red flash, fading out." />
+	<LinkCard title="Spawn bullets and effects" href="/examples/spawn-components/" description="Components made from code that remove themselves." />
+	<LinkCard title="Read LDtk entities and fields" href="/examples/ldtk-entities/" description="Fields, entity references, the IntGrid, entities made by code." />
+</CardGrid>
+
+## The game around it
+
+<CardGrid>
+	<LinkCard title="Save and load progress" href="/examples/save-and-load/" description="A global script, checkpoints, settings, Save_Game and Load_Game." />
+	<LinkCard title="A HUD with a health bar and score" href="/examples/hud/" description="UI nodes, or a global that draws over every scene." />
+	<LinkCard title="Sounds, music and buses" href="/examples/sound-and-music/" description="Footsteps, crossfading music, layers, bus volumes." />
+	<LinkCard title="Scene changes, transitions and a pause menu" href="/examples/scene-changes/" description="Doors with wipes and fades, a menu over the level." />
+</CardGrid>
+
+## Polish
+
+<CardGrid>
+	<LinkCard title="Animations from a state machine" href="/examples/state-machine/" description="A StateMachine node picks the animation from what the script reports." />
+	<LinkCard title="Talk to a character" href="/examples/dialogue/" description="A DialogueBox, choices, variables and commands that run code." />
+	<LinkCard title="Juice with tweens" href="/examples/tweens/" description="Pops, squashes, pulses, floating numbers and sliding doors." />
+</CardGrid>

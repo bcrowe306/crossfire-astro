@@ -1,0 +1,111 @@
+---
+title: Install on macOS
+description: Install the Crossfire Editor on an Apple Silicon Mac from the disk image, open it past Gatekeeper, and set up what scripts need.
+sidebar:
+  order: 3
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+The editor is built for **Apple Silicon** Macs (M1 and later) running **macOS 15** or newer.
+Everything it needs is inside the app, including Vulkan (MoltenVK, which runs it on Metal), so
+there's nothing else to install to run it.
+
+## Install
+
+<Steps>
+
+1. Download `crossfire-editor-<version>-macos_arm64.dmg` from the [Download page](/download/)
+   (or the [GitHub releases](https://github.com/bcrowe306/crossfire-editor/releases), marked
+   pre-release).
+
+2. Open the disk image and drag **Crossfire Editor** onto **Applications**.
+
+3. Open **Crossfire Editor** from Applications. The first time, macOS refuses (see the next
+   section).
+
+</Steps>
+
+## Opening it the first time (Gatekeeper)
+
+The app is signed ad hoc but **not notarized** by Apple yet, so Gatekeeper blocks it the first
+time with a message like "Apple could not verify Crossfire Editor is free of malware". You only
+have to allow it once. Either:
+
+<Steps>
+
+1. Try to open the app once, and close the message.
+
+2. Open **System Settings > Privacy & Security**. Near the bottom, beside the message about
+   Crossfire Editor, click **Open Anyway**, and confirm with your password.
+
+</Steps>
+
+or remove the quarantine flag in a terminal:
+
+```sh
+xattr -dr com.apple.quarantine "/Applications/Crossfire Editor.app"
+```
+
+<Aside type="note">
+On macOS 14 and older, right-click > **Open** was enough. macOS 15 removed that shortcut, so use
+Privacy & Security or `xattr`.
+</Aside>
+
+## First run
+
+The app is read-only, so the editor keeps its settings and build folders in
+`~/Library/Application Support/crossfire-editor`, and copies the **demo project** to
+`~/Documents/Crossfire Editor` the first time it starts. Press **F5** to play it.
+
+Shortcuts written with Ctrl in these docs and the manual are **Cmd** on a Mac (Cmd+S saves,
+Cmd+B builds). The editor shows them that way.
+
+## Scripts: Odin and a linker
+
+Projects **without** scripts play and export with nothing else installed: the app carries a
+prebuilt game player.
+
+Projects **with** scripts are compiled, which needs two things:
+
+<Steps>
+
+1. **Odin.** In the editor's window, open **Edit > Settings...** (Cmd+,) **> Toolchain** and press
+   **Install Odin dev-2026-10**. It downloads the version the engine uses (about 70 MB) into
+   `~/Library/Application Support/crossfire-editor`. Homebrew's `odin` is usually older than the
+   engine needs, so prefer this button.
+
+2. **Xcode's command line tools**, which give Odin its linker (clang). In a terminal:
+
+   ```sh
+   xcode-select --install
+   ```
+
+   The full Xcode works too.
+
+3. Check **Settings > Toolchain** again: **Odin compiler** and **Linker (clang)** should have a
+   green check.
+
+</Steps>
+
+The demo project has scripts, so it needs these too. See
+[Settings and the toolchain](/manual/settings-and-toolchain/) for every row of that tab.
+
+## Common problems
+
+**macOS says "Crossfire Editor is damaged and can't be opened".** That's Gatekeeper again, on a
+downloaded app it can't verify. Run the `xattr` command above, then open it.
+
+**It doesn't open on an Intel Mac.** There's no Intel build yet: the app is arm64 only.
+
+**Play says "No Odin compiler" or the build fails at linking.** The project has scripts: install
+Odin and the command line tools as above. The **Output** tab (Cmd+J opens the bottom panel) shows
+what the build said.
+
+**Games I export warn other people the same way.** Exported macOS games are signed ad hoc, not
+notarized. Players allow them the same way (Privacy & Security, or `xattr`). See
+[Exporting](/manual/exporting/#which-computer-can-export-what).
+
+<Aside>
+Next: [Your first game](/getting-started/first-game/).
+</Aside>

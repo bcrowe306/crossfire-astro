@@ -1,0 +1,95 @@
+/*
+Crossfire's look: near-black steel with the logo's fire (deep red, orange, gold) as the accent,
+Chakra Petch for display type, Inter for text, JetBrains Mono for code. Sharp corners and
+diagonal cuts: the X of the logo. Starlight reads the --sl-* variables; the site's own pages
+(src/pages) use the --cf-* ones too.
+*/
+
+:root {
+	--cf-red: #b3131b;
+	--cf-ember: #e8461d;
+	--cf-orange: #ff6a1a;
+	--cf-gold: #ffb627;
+	--cf-flame: linear-gradient(115deg, #b3131b 0%, #e8461d 35%, #ff6a1a 60%, #ffb627 100%);
+	--cf-ink: #08080b;
+	--cf-steel: #111116;
+	--cf-steel-2: #18181f;
+	--cf-line: #2a2a33;
+	--cf-display: 'Chakra Petch', 'Inter Variable', system-ui, sans-serif;
+	--cf-cut: 18px;
+
+	--sl-font: 'Inter Variable', system-ui, sans-serif;
+	--sl-font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
+
+	/* Dark (the default) */
+	--sl-color-accent-low: #3a1208;
+	--sl-color-accent: #ff6a1a;
+	--sl-color-accent-high: #ffc79e;
+	--sl-color-white: #f4f2ef;
+	--sl-color-gray-1: #e2dfda;
+	--sl-color-gray-2: #c2bdb6;
+	--sl-color-gray-3: #8d8780;
+	--sl-color-gray-4: #57524d;
+	--sl-color-gray-5: #2c2a28;
+	--sl-color-gray-6: #18171a;
+	--sl-color-black: #0b0b0e;
+}
+
+:root[data-theme='light'] {
+	--sl-color-accent-low: #ffe2cf;
+	--sl-color-accent: #c2410c;
+	--sl-color-accent-high: #5a1d06;
+	--sl-color-white: #151316;
+	--sl-color-gray-1: #26232a;
+	--sl-color-gray-2: #3c3840;
+	--sl-color-gray-3: #6b6670;
+	--sl-color-gray-4: #9d98a2;
+	--sl-color-gray-5: #d7d3d9;
+	--sl-color-gray-6: #eeebef;
+	--sl-color-gray-7: #f7f5f8;
+	--sl-color-black: #ffffff;
+}
+
+/* Headings in the display face */
+.sl-markdown-content :is(h1, h2, h3),
+h1#_top,
+.site-title {
+	font-family: var(--cf-display);
+	letter-spacing: 0.01em;
+}
+h1#_top {
+	text-transform: uppercase;
+	font-weight: 700;
+}
+
+/* A thin flame line under the header */
+header.header {
+	border-bottom: 1px solid transparent;
+	border-image: var(--cf-flame) 1;
+}
+
+/* Sharp, not rounded */
+:root {
+	--sl-nav-pad-x: 1.5rem;
+}
+.sl-markdown-content :is(.starlight-aside, details, table, img) {
+	border-radius: 0;
+}
+.starlight-aside--tip {
+	border-color: var(--cf-gold);
+}
+
+/* Links in content: the accent, underlined on hover */
+.sl-markdown-content a:not(:where(.not-content *)) {
+	text-decoration-color: color-mix(in srgb, var(--sl-color-accent) 40%, transparent);
+	text-underline-offset: 0.2em;
+}
+
+/* The sidebar's current page: a flame bar */
+nav.sidebar a[aria-current='page'] {
+	border-left: 3px solid var(--cf-orange);
+	border-radius: 0;
+}
+
+/* Code in the docs: tabs four wide, no ligatures */
+.expressive-code pre, code { tab-size: 4; font-variant-ligatures: none; }

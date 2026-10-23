@@ -1,0 +1,176 @@
+---
+title: Talk to a character
+description: A character the player talks to with a button press, a conversation with choices and variables shown in a DialogueBox, and commands in the dialogue that run game code.
+sidebar:
+  order: 12
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+A guide who talks when the player walks up and presses **E** (or the gamepad's North button). The
+conversation is a **dialogue asset** written in the editor's **Dialogue** tab, shown by a
+**DialogueBox** node that types each line out and lets the player choose answers. Two **commands**
+in the dialogue (`give coin`, `shake`) call game code through the box's **onCommand** event.
+
+## The scene
+
+<Steps>
+
+1. **The dialogue.** In the browser, right-click > **New Dialogue**, name it `guide`. In the
+   **Dialogue** tab, build the conversation below ([Writing one](/manual/dialogue/#writing-one-in-the-dialogue-tab)),
+   or import a Yarn Spinner `.yarn` file.
+2. **The box.** **Add Node > DialogueBox** named **Talk**, inside a node named **HUD** on a screen
+   layer (so the camera doesn't move it). **Dialogue**: guide. Leave **Starts playing** off: the
+   script starts it. Tick **Hide when done**.
+3. **The guide.** A Sprite for the character, and under it an **Area** with a CollisionShape a bit
+   bigger than the character: the place where the player can talk. Give the Area the `Guide` script.
+4. **Commands to code.** Select **Talk**, open **Events** in the inspector and press **Listen...**
+   beside **onCommand**. Pick the guide's Area. The editor adds a handler to `guide.odin`; replace
+   it with the one below (same name).
+5. Project Settings > **Input**: an action **interact** (E, the gamepad's North button).
+
+</Steps>
+
+The dialogue, as the editor saves it (`dialogues/guide.dialogue.xml`):
+
+```xml
+<dialogue formatVersion="13" start="Start">
+	<node name="Start" x="0" y="0">
+		<line speaker="Guide" text="Welcome back, traveller." if="$met_guide"/>
+		<line speaker="Guide" text="Oh! A visitor. Nobody comes this deep into the forest." if="not $met_guide"/>
+		<set var="$met_guide" value="true"/>
+		<options>
+			<option text="Any advice?" next="Advice"/>
+			<option text="Got anything for me?" next="Gift" if="not $got_coin"/>
+			<option text="Bye." next="End"/>
+		</options>
+	</node>
+	<node name="Advice" x="240" y="0">
+		<line speaker="Guide" text="The key is up high. Jump from the moving log."/>
+		<command text="shake"/>
+		<line speaker="Guide" text="...and mind the boars."/>
+	</node>
+	<node name="Gift" x="240" y="120">
+		<command text="give coin"/>
+		<set var="$got_coin" value="true"/>
+		<line speaker="Guide" text="Here. Don't spend it all at once."/>
+	</node>
+	<node name="End" x="480" y="0">
+		<line speaker="Guide" text="Safe travels."/>
+	</node>
+</dialogue>
+```
+
+## The script
+
+```odin title="scripts/guide.odin"
+package scripts
+
+import e "engine:."
+import sdl "vendor:sdl3"
+
+/*
+Guide: on an Area around a character. While the player (a CharacterMover) is inside, "interact"
+starts the conversation in the DialogueBox "/HUD/Talk", from `startNode`. The box's commands come
+to Guide_onTalkCommand (a listener set in the inspector: Talk > Events > onCommand > Listen...).
+*/
+Guide :: struct {
+	using script: e.Script,
+	box: ^e.DialogueBox `export:"default=/HUD/Talk"`,
+	// The dialogue's node to start in ("": the dialogue's own start)
+	startNode: string `export:""`,
+	// Bodies of the player inside the Area
+	near: int,
+}
+
+// Whether a conversation is showing (the player's script can stop moving meanwhile)
+Guide_Talking :: proc(self: ^Guide) -> bool {
+	return self.box != nil && e.DialogueBox_IsPlaying(self.box)
+}
+
+// Talk's onCommand (Events in Talk's inspector): a Command step ran. data: its text
+Guide_onTalkCommand :: proc(self: ^Guide, source: ^e.Node, data: e.EventData) {
+	text, _ := data.(string)
+	switch text {
+	case "give coin":
+		e.Game_PlaySound(self.game, SOUND_COIN)
+		// Dialogue variables are the game's: every box sees them
+		coins := e.DialogueVariables_Get(&self.game.dialogueVariables, "$coins")
+		count, _ := coins.(f64)
+		e.DialogueVariables_Set(&self.game.dialogueVariables, "$coins", count + 1)
+	case "shake":
+		e.Camera2D_Shake(self.scene.camera, 3, 0.25)
+	}
+}
+
+@(init)
+register_Guide_onTalkCommand :: proc "contextless" () {
+	e.Script_Listener(Guide, "onTalkCommand", Guide_onTalkCommand)
+}
+
+@(init)
+register_Guide :: proc "contextless" () {
+	e.Script_Register(Guide, {
+		update = proc(self: ^Guide, _: []sdl.Event, _: f64) {
+			if self.near == 0 || self.box == nil || Guide_Talking(self) do return
+			if e.Input_IsActionJustPressed(ACTION_INTERACT) do e.DialogueBox_Start(self.box, self.startNode)
+		},
+		collisionEnter = proc(self: ^Guide, hit: ^e.Collision) {
+			if e.Node_Is(hit.other, e.CharacterMover) do self.near += 1
+		},
+		collisionExit = proc(self: ^Guide, hit: ^e.Collision) {
+			if e.Node_Is(hit.other, e.CharacterMover) do self.near = max(self.near - 1, 0)
+		},
+	})
+}
+```
+
+```odin title="scripts/assets.odin (generated; the lines this page uses)"
+package scripts
+
+import e "engine:."
+
+SOUND_COIN :: e.SoundAsset{"assets/coin.ogg"}
+DIALOGUE_GUIDE :: "dialogues/guide.dialogue.xml"
+
+ACTION_INTERACT :: "interact"
+```
+
+## How it works
+
+- **The DialogueBox plays the conversation by itself**: it types each line, waits for Space, Enter,
+  a click or `ui_accept` to go on, and shows options to pick with up and down. The script only
+  starts it: `e.DialogueBox_Start(box, node)`.
+- **A separate "interact" action** starts the talk. If the same press that starts it also reached
+  the box (`ui_accept`), it could skip the first line.
+- **`near`** counts the player's bodies inside the Area: `collisionEnter` adds, `collisionExit`
+  takes away.
+- **Conditions and variables** live in the dialogue: `$met_guide` changes the greeting the second
+  time, and the gift option shows only until `$got_coin` is set. Variables nobody set are 0
+  (false).
+- **Commands** are how a dialogue asks the game to do something. The box fires **onCommand** with
+  the text and carries on. A listener added with **Listen...** is stored in the scene (on Talk) and
+  calls the handler registered with `e.Script_Listener`; the name, `onTalkCommand`, ties them.
+- **`self.game.dialogueVariables`** holds the variables every box shares. `DialogueVariables_Get`
+  gives a `DialogueValue` (a number is an `f64`).
+
+## Try it
+
+- Stop the player while talking: in its movement script, find the guide's script and return early.
+
+  ```odin
+  // Given: guide: ^Guide
+  if Guide_Talking(guide) do return
+  ```
+
+- Make the conversation wait for something (a door to open): call `e.DialogueBox_Hold(box)` in the
+  command's handler and `e.DialogueBox_Continue(box)` when it's done. `wait 1.5` as a command waits
+  by itself.
+- Show `$coins` in a line: `You have {$coins} coins.`
+- Save what the dialogue learned: copy `$met_guide` into a global before `e.Save_Game()`; dialogue
+  variables aren't saved by themselves ([Save and load progress](/examples/save-and-load/)).
+
+<Aside>
+[Dialogue](/manual/dialogue/) covers every step kind, expressions, the box's look, and importing
+Yarn Spinner files.
+</Aside>

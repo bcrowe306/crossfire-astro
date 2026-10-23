@@ -1,0 +1,217 @@
+---
+title: A HUD with a health bar and score
+description: Show health and score two ways - UI nodes (a ProgressBar and RichText) updated by a script, or a global script that draws over every scene. From the demo's HUD.
+sidebar:
+  order: 8
+---
+
+import { Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+A HUD shows the player's state over the game: health, score, coins. There are two ways to make
+one, and this page does both from the same data:
+
+- **UI nodes** you lay out in the editor (a **ProgressBar** and a **RichText**), with a small script
+  that copies the values in. Easy to arrange and theme; one per scene.
+- **A global that draws**: a global script's `draw` hook draws over every scene, in screen space.
+  Nothing to place; it's all code. The demo project's HUD (`scripts/hud.odin`) is one.
+
+Both read a **PlayerStats** global, which the rest of the game changes.
+
+## The data
+
+```odin title="scripts/player_stats.odin"
+package scripts
+
+import e "engine:."
+
+/*
+PlayerStats: a global script (Project Settings > Globals). The player's health and score, for
+every scene. The game's scripts change them; the HUD shows them.
+*/
+PlayerStats :: struct {
+	using script: e.Script,
+	maxHealth: int `export:"default=5 min=1 max=20"`,
+	health: int,
+	score: int,
+}
+
+// Takes health (never below 0); true when it's all gone
+PlayerStats_Damage :: proc(self: ^PlayerStats, amount: int) -> bool {
+	self.health = max(self.health - amount, 0)
+	return self.health == 0
+}
+
+@(init)
+register_PlayerStats :: proc "contextless" () {
+	e.Script_Register(PlayerStats, {
+		ready = proc(self: ^PlayerStats) {
+			self.health = self.maxHealth
+		},
+	})
+}
+```
+
+## The HUD
+
+<Tabs>
+<TabItem label="UI nodes">
+
+<Steps>
+
+1. **Add Node > Panel** named **HUD**: **Anchor** Top_Left, **Layout** Column. If the scene has a
+   camera, put the HUD on a layer ticked as a **Screen layer** in the scene's settings, so it
+   doesn't scroll away ([UI and the camera](/manual/ui/#screen-size-and-the-camera)).
+2. Inside it, **Add Node > ProgressBar** named **Health** (set its width in the inspector), and
+   **Add Node > RichText** named **Score**.
+3. Give HUD the `HudPanel` script. Its **Health** and **Score** fields find the two by name.
+
+</Steps>
+
+```odin title="scripts/hud_panel.odin"
+package scripts
+
+import "core:fmt"
+import e "engine:."
+import sdl "vendor:sdl3"
+
+/*
+HudPanel: on a Panel with a ProgressBar "Health" and a RichText "Score" inside. Copies the
+PlayerStats global into them when the values change.
+*/
+HudPanel :: struct {
+	using script: e.Script,
+	health: ^e.ProgressBar `export:"default=Health"`,
+	score: ^e.RichText `export:"default=Score"`,
+	// What's shown now (-1: nothing yet)
+	shownScore: int,
+}
+
+@(init)
+register_HudPanel :: proc "contextless" () {
+	e.Script_Register(HudPanel, {
+		ready = proc(self: ^HudPanel) {
+			self.shownScore = -1
+		},
+		update = proc(self: ^HudPanel, _: []sdl.Event, _: f64) {
+			stats := e.Global(PlayerStats)
+			if stats == nil do return
+			if self.health != nil {
+				self.health.settings.maxValue = f32(stats.maxHealth)
+				e.ProgressBar_SetValue(self.health, f32(stats.health))
+			}
+			// Control_SetText copies the text into the control: only when it changes
+			if self.score != nil && stats.score != self.shownScore {
+				self.shownScore = stats.score
+				e.Control_SetText(self.score, fmt.tprintf("Score [color=#ffd040]%d[/color]", stats.score))
+			}
+		},
+	})
+}
+```
+
+</TabItem>
+<TabItem label="A global that draws">
+
+<Steps>
+
+1. **Scripts > New Script...**, name `HudOverlay`, **Kind: Global script**. Put it after
+   PlayerStats in Project Settings > **Globals**.
+2. Nothing to place: it draws in every scene. It hides itself outside the levels.
+
+</Steps>
+
+```odin title="scripts/hud_overlay.odin"
+package scripts
+
+import "core:fmt"
+import "core:strings"
+import e "engine:."
+import sdl "vendor:sdl3"
+
+/*
+HudOverlay: a global script that draws. A global's draw hook runs after the scene, in screen space
+(the game's resolution; the camera doesn't move it). Draws a health bar whose lost part trails
+behind and drains, and the score on the right. Hidden in scenes not named "Level...".
+*/
+HudOverlay :: struct {
+	using script: e.Script,
+	color: sdl.Color `export:"default=#ebf0ff"`,
+	textSize: f32 `export:"default=26 min=8 max=72"`,
+	// The health the bar shows: drains toward the real one after a hit
+	shown: f32,
+}
+
+@(init)
+register_HudOverlay :: proc "contextless" () {
+	e.Script_Register(HudOverlay, {
+		sceneChanged = proc(self: ^HudOverlay, scene: ^e.Scene) {
+			// self.hidden skips draw
+			self.hidden = !strings.has_prefix(scene.name, "Level")
+		},
+		update = proc(self: ^HudOverlay, _: []sdl.Event, deltaTime: f64) {
+			stats := e.Global(PlayerStats)
+			if stats == nil do return
+			target := f32(stats.health)
+			// Down slowly (two points a second), up at once
+			self.shown = self.shown > target ? max(self.shown - f32(deltaTime) * 2, target) : target
+		},
+		draw = proc(self: ^HudOverlay, renderer: ^sdl.Renderer) {
+			stats := e.Global(PlayerStats)
+			if stats == nil do return
+			rm := &self.game.resourceManager
+			maxHealth := f32(max(stats.maxHealth, 1))
+
+			// The bar: background, the trailing part, the real health, an outline
+			bar := sdl.FRect{24, 22, 300, 22}
+			e.DrawRectangle(renderer, &bar, {60, 20, 28, 255})
+			trail := sdl.FRect{bar.x, bar.y, bar.w * clamp(self.shown / maxHealth, 0, 1), bar.h}
+			e.DrawRectangle(renderer, &trail, {255, 214, 160, 255})
+			fill := sdl.FRect{bar.x, bar.y, bar.w * clamp(f32(stats.health) / maxHealth, 0, 1), bar.h}
+			e.DrawRectangle(renderer, &fill, {214, 40, 64, 255})
+			e.DrawRectangleOutline(renderer, &bar, {235, 240, 255, 220})
+
+			// The score, right-aligned against the game's width
+			text := fmt.tprintf("Score %d", stats.score)
+			size := e.MeasureText(rm, text, e.DEFAULT_FONT, self.textSize)
+			e.DrawText(rm, {self.game.size.x - 24 - size.x, 16}, text, e.DEFAULT_FONT, self.textSize, self.color)
+		},
+	})
+}
+```
+
+</TabItem>
+</Tabs>
+
+## How it works
+
+- **A global** is one script for the whole game, not attached to a node, listed in Project
+  Settings > Globals ([Global scripts](/manual/globals-data-saves/#global-scripts)). Other scripts
+  change it through `e.Global(PlayerStats)`; a hit might call `PlayerStats_Damage(stats, 1)`.
+- **UI node fields.** `health: ^e.ProgressBar` with `export:"default=Health"` is a path from the
+  script's node: the child named Health. The engine fills it in before `ready`; it stays `nil` (with
+  a warning in the Console) when there's no such node of that kind.
+- **`e.ProgressBar_SetValue`** sets the bar's value, kept inside its range (`settings.minValue` to
+  `settings.maxValue`, 0 to 1 unless you set them).
+- **RichText** understands `[color=#rrggbb]...[/color]` and `[size=28]...[/size]`.
+  `e.Control_SetText` copies the text into the control's memory, so it's only called on a change.
+- **A global's `draw`** runs after the scene, in the game's own resolution (`self.game.size`),
+  whatever the window's size. `self.hidden = true` skips it; `sceneChanged` is a good place to decide.
+- **Drawing procedures** take the renderer the hook receives: `e.DrawRectangle`,
+  `e.DrawRectangleOutline`, `e.DrawRoundedRectangle`, `e.DrawLine`, `e.DrawTexture`, and
+  `e.DrawText` / `e.MeasureText` with the game's resource manager and a font (`e.DEFAULT_FONT`, or a
+  `FONT_` constant's path).
+- `fmt.tprintf` strings last until the end of the frame: fine for drawing them in the same frame.
+
+## Try it
+
+- Coins with an icon, as the demo does:
+  `e.DrawTexture(renderer, e.Asset_Texture(self.game, TEXTURE_COIN), {14, 48, 64, 64})`.
+- Blink the bar while health is low: skip drawing `fill` when `int(self.game.time * 6) % 2 == 0`
+  (`game.time` is the seconds the game has run).
+- Theme the UI-node HUD: select the Panel, **New Theme**, and change the bar's colors in the theme
+  ([Themes](/manual/ui/#themes-how-controls-look)).
+
+<Aside>
+[The UI system](/manual/ui/) covers anchors, layouts and every control. Menus that switch scenes
+need no code: a Button's **Action**.
+</Aside>

@@ -1,0 +1,46 @@
+---
+title: Getting started
+description: What Crossfire is, what you need to run it, and where to start.
+sidebar:
+  order: 0
+  label: Overview
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+Crossfire is a 2D game engine and an editor for it, both written in [Odin](https://odin-lang.org).
+You build a game from **scenes** (a level, a menu) made of **nodes**: a sprite, a label, a camera,
+a physics body, a sound. You add your own code as **scripts**, small Odin files attached to nodes.
+The engine runs on SDL3 and Box2D, and games export to Linux, Windows, macOS and the web.
+
+The **Crossfire Editor** is where you do the work. It shows the scene the way the game draws it,
+lets you arrange nodes and set their properties in an inspector, edits your scripts, and runs
+the game with **Play** (F5). The editor and engine are early (development builds), but they're
+already usable: the editor comes with a demo project, a small space game and a platformer level,
+that uses most of the engine.
+
+## What you'll do
+
+1. Install the editor for your system and open the demo project.
+2. If you want to write scripts, install Odin (one button in the editor) and a linker.
+3. Make a small game of your own: a sprite you move with the keyboard or a gamepad, then export it.
+
+## Install
+
+<CardGrid>
+	<LinkCard title="Linux" href="/getting-started/linux/" description="AppImage or tar.gz, x86_64." />
+	<LinkCard title="Windows" href="/getting-started/windows/" description="Installer or zip, x86_64." />
+	<LinkCard title="macOS" href="/getting-started/macos/" description="Disk image, Apple Silicon, macOS 15 or newer." />
+	<LinkCard title="From source" href="/getting-started/from-source/" description="Build the engine and editor yourself." />
+</CardGrid>
+
+All downloads are on the [Download page](/download/).
+
+## Then
+
+<CardGrid>
+	<LinkCard title="Your first game" href="/getting-started/first-game/" description="A sprite, a script that moves it, Play and Export." />
+	<LinkCard title="Examples" href="/examples/" description="Working scripts for common game tasks." />
+	<LinkCard title="Editor manual" href="/manual/getting-started/" description="Every panel and feature of the editor." />
+	<LinkCard title="Engine API" href="/api/" description="Every type and procedure of the engine." />
+</CardGrid>

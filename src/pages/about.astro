@@ -1,0 +1,125 @@
+---
+/*
+About: why Crossfire exists (to show what Odin can do for games and the tools around them), what
+it's made of, the license.
+*/
+import SiteLayout from '../layouts/SiteLayout.astro';
+import { REPOS } from '../site';
+
+// Lines of Odin in each part, counted on 2026-10-22 (comments and blank lines included)
+const parts = [
+	{ name: 'The engine', lines: '55,000', what: 'Scenes and nodes, rendering on SDL3, Box2D physics, audio, input, animation, lighting, particles, UI, tilemaps, the project format, the player and the web build.', repo: REPOS.engine },
+	{ name: 'The editor', lines: '53,000', what: 'The scene editor, inspector, browser, the animation, timeline, state machine and dialogue panels, play and live view, exports, Git, plugins.', repo: REPOS.editor },
+	{ name: 'The code editor', lines: '23,000', what: 'A code editor with an Odin language server client: completion, signatures, diagnostics, go to definition, find and replace, multiple cursors.', repo: `${REPOS.editor}/tree/main/code_editor` },
+	{ name: 'Skald', lines: '53,000', what: 'The editor\'s UI framework: Elm-style (state, messages, views), drawn with Vulkan on SDL3 windows.', repo: REPOS.skald },
+];
+---
+
+<SiteLayout title="About Crossfire" description="Why Crossfire exists: a 2D engine, its editor, the editor's code editor and UI framework, and your game's scripts, all written in Odin.">
+	<section class="cf-section cf-page-head">
+		<div class="cf-wrap">
+			<p class="cf-kicker">About</p>
+			<h1 class="cf-h2">One language. <span class="cf-fire-text">All the way down.</span></h1>
+			<p class="cf-lead">
+				Crossfire exists to show what Odin can do. Not a toy demo: a 2D engine and the complete
+				tool you'd make games with, where every layer is Odin, and you can read all of it.
+			</p>
+		</div>
+	</section>
+
+	<section class="cf-wrap cf-prose">
+		<h2>Why Odin</h2>
+		<p>
+			<a href="https://odin-lang.org">Odin</a> is a systems language built for the kind of
+			programs games are: data-oriented, fast, and close to the machine, but pleasant to write. It
+			has the things game code wants without ceremony: custom allocators and arenas, slices and
+			dynamic arrays, struct embedding with <code>using</code>, tagged unions, array programming
+			for vectors (<code>position += velocity * dt</code>), reflection, and bindings for SDL,
+			Vulkan, Box2D and friends in its vendor library.
+		</p>
+		<p>
+			Most engines make you pick: a fast native core in one language, scripting in another, the
+			editor in a third, with glue between them. Crossfire asks what happens if you don't. The
+			answer is a stack with no seams: a script's struct is the same kind of struct the engine
+			uses, the inspector reads its fields with Odin's reflection, and the debugger, profiler and
+			compiler see one program.
+		</p>
+
+		<h2>What it's made of</h2>
+		<p>About 184,000 lines of Odin across four parts, all open source:</p>
+	</section>
+
+	<section class="cf-wrap cf-about-parts">
+		{parts.map((p) => (
+			<a class="cf-card" href={p.repo}>
+				<span class="cf-card-icon">{p.lines}</span>
+				<h3>{p.name}</h3>
+				<p>{p.what}</p>
+			</a>
+		))}
+	</section>
+
+	<section class="cf-wrap cf-prose">
+		<h2>Your game is Odin too</h2>
+		<p>
+			A game's scripts are an Odin package. Each script is a struct that embeds{' '}
+			<code>e.Script</code>, registers itself, and gets <code>ready</code>, <code>update</code> and{' '}
+			<code>draw</code> calls; fields tagged <code>export</code> become inspector controls. The editor
+			compiles them into a player made for your project, runs it as a separate process (a crash
+			can't take the editor down), and with hot reload rebuilds it when you save, putting the game
+			back where it was.
+		</p>
+		<p>
+			Even the editor's plugins are Odin: a package in your project's <code>plugins/</code> folder,
+			built as a shared library and loaded into the editor, adding commands, importers and
+			inspector rows.
+		</p>
+
+		<h2>How it's built</h2>
+		<ul>
+			<li><strong>Tested.</strong> Hundreds of unit tests across the engine and editor, and UI test scripts that drive the real editor with injected input on every change.</li>
+			<li><strong>Built in CI on every platform.</strong> Each build compiles and tests on Linux, Windows and macOS, then packages an AppImage, an installer and a disk image.</li>
+			<li><strong>Documented.</strong> Every public procedure and type of the engine has a doc comment with an example that compiles; the <a href="/api/">API reference</a> is generated from them, and the <a href="/manual/">editor manual</a> covers every feature.</li>
+			<li><strong>No hidden dependencies.</strong> SDL is linked in statically; a desktop game exports as one executable.</li>
+		</ul>
+
+		<h2>Where it's going</h2>
+		<p>
+			Crossfire is in active development: builds are published as development releases while the
+			feature set settles. Version 1.0 will bring stable project files, a signed macOS app and more
+			export targets. Follow along, try it, and <a href="/contribute/">tell us what breaks</a>.
+		</p>
+
+		<h2 id="license">License</h2>
+		<p>
+			Crossfire is free and open source under the <strong>MIT license</strong>: use it for anything,
+			commercial games included, change it, ship it. The engine and editor bundle a few
+			third-party pieces under their own permissive licenses (SDL, Box2D, FreeType, Font Awesome,
+			and others), listed in each repository's README.
+		</p>
+		<pre class="cf-wrap-pre"><code>Copyright (c) 2026 Brandon Crowe
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+associated documentation files (the "Software"), to deal in the Software without restriction,
+including without limitation the rights to use, copy, modify, merge, publish, distribute,
+sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions: the above copyright notice and this
+permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. See LICENSE in each repository
+for the full text.</code></pre>
+	</section>
+	<div style="height: 5rem"></div>
+</SiteLayout>
+
+<style>
+	.cf-about-parts {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+		gap: 1px;
+		background: var(--cf-line);
+		border: 1px solid var(--cf-line);
+		margin-block: 1.5rem 1rem;
+	}
+	.cf-about-parts .cf-card-icon { width: auto; padding-inline: 0.6rem; }
+</style>

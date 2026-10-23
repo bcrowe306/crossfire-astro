@@ -1,0 +1,161 @@
+---
+title: Move a character with input actions
+description: A top-down character on a CharacterMover that speeds up and slows down smoothly, stops at walls, faces where it walks and dashes, on keyboard and gamepad alike.
+sidebar:
+  order: 1
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+A top-down character: it walks in eight directions with the arrow keys, WASD, a gamepad's d-pad or
+left stick, speeds up and slows down instead of starting and stopping dead, is stopped by walls,
+turns its sprite to face where it walks, and dashes on a button.
+
+It reads **input actions**, not keys, so it plays the same on a keyboard and a gamepad, and players
+can rebind it. Physics stops it at walls: it's a **CharacterMover**, a body your code moves.
+
+## The scene
+
+<Steps>
+
+1. **Add Node > CharacterMover**, named **Player**. Under it:
+   - a **Sprite** (or an AnimatedSprite) named **Sprite**, drawn facing right;
+   - a **CollisionShape** with **Shape: Circle** and a **Radius** that fits the character's feet.
+2. Walls: a **StaticBody** with CollisionShapes (rectangles or segments) around the room.
+3. Project Settings > General > **Gravity**: `0, 0` (a top-down game has none). This only matters
+   for DynamicBodies: a mover never falls by itself.
+4. Project Settings > **Input**: add an action **dash** and bind it to Left Shift and the gamepad's
+   **East** button. The `ui_*` actions are already there in a new project.
+5. Select Player, **Script > New...**, name it `TopDown`, and paste the script below.
+
+</Steps>
+
+[Physics](/manual/physics/) explains bodies and shapes; [Input](/manual/input/) the actions.
+
+## The script
+
+```odin title="scripts/top_down.odin"
+package scripts
+
+import "core:math"
+import e "engine:."
+import sdl "vendor:sdl3"
+
+/*
+TopDown: on a CharacterMover. Walks in eight directions with the ui_* actions, easing its speed
+up and down, slides along walls, mirrors its "Sprite" child to face left or right, and dashes on
+"dash" (a burst of speed, then a short wait before the next).
+*/
+TopDown :: struct {
+	using script: e.Script,
+	// Top speed, in pixels per second
+	speed: f32 `export:"default=220 min=0 max=1000"`,
+	// How quickly it reaches top speed and stops again (higher: snappier)
+	acceleration: f32 `export:"default=12 min=1 max=60"`,
+	// The dash: its speed, how long it lasts and the wait before the next (seconds)
+	dashSpeed: f32 `export:"default=600 min=0 max=2000"`,
+	dashTime: f32 `export:"default=0.15 min=0.01 max=1"`,
+	dashCooldown: f32 `export:"default=0.6 min=0 max=5"`,
+
+	sprite: ^e.Node,
+	// Seconds left of the dash, and of the wait after it
+	dashing, cooldown: f32,
+	// The direction of the dash (and the last one walked)
+	facing: [2]f32,
+}
+
+@(init)
+register_TopDown :: proc "contextless" () {
+	e.Script_Register(TopDown, {
+		ready = proc(self: ^TopDown) {
+			self.sprite = e.Node_FindChild(self.node, "Sprite")
+			self.facing = {1, 0}
+		},
+		update = proc(self: ^TopDown, events: []sdl.Event, deltaTime: f64) {
+			mover := cast(^e.CharacterMover)self.node
+			dt := f32(deltaTime)
+
+			// A direction from four actions: x right, y down, at most 1 long (diagonals aren't faster).
+			// A stick pushed half way gives half the length: half speed
+			input := e.Input_GetVector(ACTION_UI_LEFT, ACTION_UI_RIGHT, ACTION_UI_UP, ACTION_UI_DOWN)
+			if input != {} do self.facing = input
+
+			self.cooldown = max(self.cooldown - dt, 0)
+			if self.cooldown == 0 && e.Input_IsActionJustPressed(ACTION_DASH) {
+				self.dashing = self.dashTime
+				self.cooldown = self.dashTime + self.dashCooldown
+			}
+
+			if self.dashing > 0 {
+				// The dash ignores easing: full speed the way it faces
+				self.dashing -= dt
+				length := math.sqrt(self.facing.x * self.facing.x + self.facing.y * self.facing.y)
+				mover.velocity = self.facing / length * self.dashSpeed
+			} else {
+				// Ease toward the speed the input asks for. 1 - exp(-k * dt) is the same feel at any
+				// frame rate
+				target := input * self.speed
+				blend := 1 - math.exp(-self.acceleration * dt)
+				mover.velocity += (target - mover.velocity) * blend
+			}
+
+			// Moves by the velocity and removes the part that ran into a wall
+			e.CharacterMover_Move(mover, deltaTime)
+
+			// The sprite is drawn facing right: a negative x scale mirrors it
+			if self.sprite != nil && input.x != 0 do self.sprite.scale.x = input.x < 0 ? -1 : 1
+		},
+	})
+}
+```
+
+The names it uses come from the project's generated `scripts/assets.odin` (one constant per input
+action, written when you press Apply in Project Settings > Input):
+
+```odin title="scripts/assets.odin (generated; the lines this page uses)"
+package scripts
+
+ACTION_UI_LEFT :: "ui_left"
+ACTION_UI_RIGHT :: "ui_right"
+ACTION_UI_UP :: "ui_up"
+ACTION_UI_DOWN :: "ui_down"
+ACTION_DASH :: "dash"
+```
+
+## How it works
+
+- **`e.Input_GetVector`** turns four actions into one direction. Keys give 0 or 1 on each axis;
+  sticks give anything in between (past the action's deadzone), so a gently pushed stick walks
+  slowly. The result is never longer than 1, so walking diagonally isn't faster.
+- **Easing the velocity.** `velocity += (target - velocity) * blend` moves part of the way toward
+  the wanted speed each frame. `1 - math.exp(-acceleration * dt)` makes that part depend on the
+  frame's length, so a 144 Hz screen and a 60 Hz one feel the same.
+- **`e.CharacterMover_Move`** moves the body by `velocity * dt` and slides along whatever it hits.
+  After the move, `mover.onWall` says whether it touched a wall.
+- **The dash** is a timer: `dashing` counts down while the speed is fixed, `cooldown` keeps the
+  next dash from starting at once.
+- **`e.Input_IsActionJustPressed`** is true only on the frame the button goes down: one dash per
+  press, however long it's held.
+
+## Try it
+
+- Make it slide on ice: lower **Acceleration** to 2 in the inspector.
+- Rumble the gamepad on a dash: `e.Input_Rumble(0.3, 0.6, 0.12)` after starting it.
+- Play walk and idle animations on an AnimatedSprite named Sprite:
+
+  ```odin
+  // Given: self: ^TopDown, mover: ^e.CharacterMover
+  if e.Node_Is(self.sprite, e.AnimatedSprite) {
+  	sprite := cast(^e.AnimatedSprite)self.sprite
+  	walking := abs(mover.velocity.x) + abs(mover.velocity.y) > 10
+  	e.AnimationPlayer_Play(&sprite.animation, walking ? "walk" : "idle")
+  }
+  ```
+
+  `AnimationPlayer_Play` does nothing when that animation is already playing, so calling it
+  every frame is fine.
+
+<Aside>
+The demo project's space game flies its ship the same way (`scripts/player_ship.odin`), with the
+speed coming from a data resource.
+</Aside>

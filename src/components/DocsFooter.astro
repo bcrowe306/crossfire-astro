@@ -1,0 +1,20 @@
+---
+/*
+The docs' footer: Starlight's (edit link, last updated, pagination), then the site's line.
+(Overrides Starlight's Footer: astro.config.mjs.)
+*/
+import Default from '@astrojs/starlight/components/Footer.astro';
+---
+
+<Default />
+<p class="cf-docs-footer">
+	Crossfire is MIT licensed. Found a mistake? <a href="https://github.com/bcrowe306/crossfire-editor/issues/new/choose">Report it</a>.
+</p>
+
+<style>
+	.cf-docs-footer {
+		margin-top: 2rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+</style>

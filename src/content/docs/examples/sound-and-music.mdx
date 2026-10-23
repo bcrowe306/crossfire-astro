@@ -1,0 +1,226 @@
+---
+title: Sounds, music and buses
+description: Play one-shot sounds and footsteps with a little random pitch, crossfade the music when the player enters an area, bring in a music layer, and set bus volumes from an options screen.
+sidebar:
+  order: 9
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+Three scripts that cover most of a game's sound:
+
+- **Footsteps** plays a step sound from an AudioPlayer node while the player walks, each step at a
+  slightly different pitch so it never sounds like a machine gun;
+- **MusicZone**, on an Area, crossfades the level's music to another song while the player is
+  inside (a boss room, a cave) and back when they leave, and can fade a drum layer in;
+- **VolumeOptions**, on an options screen, sets the **Music** and **SFX** buses' volumes with
+  left and right, and mutes the effects.
+
+One-shot sounds need no node at all: `e.Game_PlaySound(self.game, SOUND_COIN)` plays a sound once,
+from anywhere, as the other examples do.
+
+## The scene
+
+<Steps>
+
+1. In the **Mixer** tab (bottom panel), press **+** twice and name the buses **Music** and **SFX**
+   ([The Mixer](/manual/sound/#the-mixer-buses)).
+2. In the level, **Add Node > MusicPlayer** named **Music**: its **Music** the level's song (a sound
+   used as music: right-click it in the browser > **Use as Music (streamed)**), **Bus** Music,
+   **Loop** and **Autostart** on. Optional: under **Layers**, a layer named **drums** at volume 0.
+3. Under the player (a CharacterMover), **Add Node > AudioPlayer** named **Step**: a short footstep
+   sound, **Bus** SFX. Give the player the `Footsteps` script.
+4. An **Area** with a CollisionShape covering the boss room, with the `MusicZone` script. Pick its
+   **Song** in the inspector.
+5. On the options scene, a **Label** with the `VolumeOptions` script.
+
+</Steps>
+
+## The scripts
+
+```odin title="scripts/footsteps.odin"
+package scripts
+
+import "core:math/rand"
+import e "engine:."
+import sdl "vendor:sdl3"
+
+/*
+Footsteps: on a CharacterMover with an AudioPlayer child "Step". While it walks on the floor,
+plays the step every `interval` seconds, each at a random pitch near 1.
+*/
+Footsteps :: struct {
+	using script: e.Script,
+	step: ^e.AudioPlayer `export:"default=Step"`,
+	interval: f32 `export:"default=0.32 min=0.05 max=2"`,
+	// How far the pitch may stray from 1 (0.08: 0.92 to 1.08)
+	variation: f32 `export:"default=0.08 min=0 max=0.5"`,
+	wait: f32,
+}
+
+@(init)
+register_Footsteps :: proc "contextless" () {
+	e.Script_Register(Footsteps, {
+		update = proc(self: ^Footsteps, _: []sdl.Event, deltaTime: f64) {
+			if self.step == nil || !e.Node_Is(self.node, e.CharacterMover) do return
+			mover := cast(^e.CharacterMover)self.node
+			walking := mover.onFloor && abs(mover.velocity.x) > 20
+			if !walking {
+				// The first step comes as soon as it starts walking again
+				self.wait = 0
+				return
+			}
+			self.wait -= f32(deltaTime)
+			if self.wait > 0 do return
+			self.wait = self.interval
+			// Settings apply the next frame: set the pitch, then play from the start
+			self.step.settings.pitch = 1 + rand.float32_range(-self.variation, self.variation)
+			e.AudioPlayer_Play(self.step)
+		},
+	})
+}
+```
+
+```odin title="scripts/music_zone.odin"
+package scripts
+
+import "core:strings"
+import e "engine:."
+import sdl "vendor:sdl3"
+
+/*
+MusicZone: on an Area. While a CharacterMover is inside, the scene's MusicPlayer plays `song`
+(crossfaded over `fade` seconds) and its "drums" layer comes in; when it leaves, the old song comes
+back.
+*/
+MusicZone :: struct {
+	using script: e.Script,
+	song: e.MusicAsset `export:""`,
+	fade: f32 `export:"default=2 min=0 max=10"`,
+	music: ^e.MusicPlayer `export:"default=/Music"`,
+	// The song that played before (in the node's memory)
+	before: string,
+}
+
+@(init)
+register_MusicZone :: proc "contextless" () {
+	e.Script_Register(MusicZone, {
+		ready = proc(self: ^MusicZone) {
+			if self.music != nil do self.before = strings.clone(self.music.sound, e.Node_GetAllocator(self.node))
+		},
+		collisionEnter = proc(self: ^MusicZone, hit: ^e.Collision) {
+			if self.music == nil || !e.Node_Is(hit.other, e.CharacterMover) do return
+			if self.song.path != "" do e.MusicPlayer_CrossfadeTo(self.music, self.song.path, self.fade)
+			// A layer of the song: false when there's none of that name
+			_ = e.MusicPlayer_SetLayerVolume(self.music, "drums", 1, seconds = self.fade)
+		},
+		collisionExit = proc(self: ^MusicZone, hit: ^e.Collision) {
+			if self.music == nil || !e.Node_Is(hit.other, e.CharacterMover) do return
+			if self.before != "" do e.MusicPlayer_CrossfadeTo(self.music, self.before, self.fade)
+			_ = e.MusicPlayer_SetLayerVolume(self.music, "drums", 0, seconds = self.fade)
+		},
+	})
+}
+```
+
+```odin title="scripts/volume_options.odin"
+package scripts
+
+import "core:fmt"
+import "core:strings"
+import e "engine:."
+import sdl "vendor:sdl3"
+
+/*
+VolumeOptions: on a Label in an options scene. Up / Down pick Music or SFX, Left / Right change
+that bus's volume in steps of 10%, Accept mutes or unmutes it. The label shows the settings.
+*/
+VolumeOptions :: struct {
+	using script: e.Script,
+	// 0: Music, 1: SFX
+	row: int,
+	changed: bool,
+}
+
+@(private="file")
+BUSES := [2]string{"Music", "SFX"}
+
+@(init)
+register_VolumeOptions :: proc "contextless" () {
+	e.Script_Register(VolumeOptions, {
+		ready = proc(self: ^VolumeOptions) {
+			self.changed = true
+		},
+		update = proc(self: ^VolumeOptions, _: []sdl.Event, _: f64) {
+			if e.Input_IsActionJustPressed(ACTION_UI_UP) || e.Input_IsActionJustPressed(ACTION_UI_DOWN) {
+				self.row = 1 - self.row
+				self.changed = true
+			}
+			bus := e.Audio_GetBus(BUSES[self.row])
+			if bus == nil do return
+			step: f32 = 0
+			if e.Input_IsActionJustPressed(ACTION_UI_LEFT) do step = -0.1
+			if e.Input_IsActionJustPressed(ACTION_UI_RIGHT) do step = 0.1
+			if step != 0 {
+				e.Audio_SetBusVolume(bus.name, clamp(bus.volume + step, 0, 1))
+				self.changed = true
+			}
+			if e.Input_IsActionJustPressed(ACTION_UI_ACCEPT) {
+				e.Audio_SetBusMute(bus.name, !bus.mute)
+				self.changed = true
+			}
+
+			if !self.changed || !e.Node_Is(self.node, e.Label) do return
+			self.changed = false
+			b := strings.builder_make(context.temp_allocator)
+			for name, i in BUSES {
+				if other := e.Audio_GetBus(name); other != nil {
+					fmt.sbprintf(&b, "%s %s %3.0f%%%s\n", i == self.row ? ">" : " ", name, other.volume * 100, other.mute ? " (muted)" : "")
+				}
+			}
+			// A label's text must outlive the frame: the node's own memory
+			(cast(^e.Label)self.node).text = strings.clone(strings.to_string(b), e.Node_GetAllocator(self.node))
+		},
+	})
+}
+```
+
+```odin title="scripts/assets.odin (generated; the lines this page uses)"
+package scripts
+
+ACTION_UI_LEFT :: "ui_left"
+ACTION_UI_RIGHT :: "ui_right"
+ACTION_UI_UP :: "ui_up"
+ACTION_UI_DOWN :: "ui_down"
+ACTION_UI_ACCEPT :: "ui_accept"
+```
+
+## How it works
+
+- **What you hear** is a sound's volume times its bus's times Master's. Putting all effects on SFX
+  and the music on Music lets an options screen change one without the other. Buses are the
+  project's; their volumes in the Mixer are where every run starts.
+- **`e.AudioPlayer_Play`** plays a node's sound from the start. Its `settings` (volume, pitch, pan,
+  loop) can change any time; they apply the next frame.
+- **Random pitch.** `rand.float32_range(-v, v)` around 1 makes each step a little higher or lower.
+  It works for any sound that repeats: hits, coins, gunshots.
+- **`e.MusicPlayer_CrossfadeTo(music, path, seconds)`** fades the playing song out while the new one
+  fades in. **Layers** are extra tracks played in step with the song (drums, strings) that fade with
+  `e.MusicPlayer_SetLayerVolume` ([Music layers](/manual/audio-effects-and-music/)).
+- **An Area's `collisionExit`** comes when the body leaves it: the way back to the old song.
+- **`e.Audio_GetBus(name)`** gives a bus's current volume, pan and mute; `e.Audio_SetBusVolume` and
+  `e.Audio_SetBusMute` change them. The node path `/Music` starts from the top of the scene.
+
+## Try it
+
+- Muffle the effects while paused or underwater: `e.Audio_SetBusEffects("SFX",
+  {e.AudioEffect_Make(.LowPass)})`, and `{}` to clear ([Bus effects](/manual/audio-effects-and-music/)).
+- Keep the player's volumes across runs: copy them into a global with `save:""` fields and apply
+  them in its `loaded` hook ([Save and load progress](/examples/save-and-load/)).
+- A sound in the world, louder near the camera: use **AudioPlayer2D** instead of AudioPlayer, with a
+  **Range** ([Sounds in the world](/manual/sound/#sounds-in-the-world-audioplayer2d)).
+
+<Aside>
+In web exports, browsers start sound only after the player's first click or key press: start on a
+title screen.
+</Aside>

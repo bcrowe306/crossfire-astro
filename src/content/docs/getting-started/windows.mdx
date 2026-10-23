@@ -1,0 +1,113 @@
+---
+title: Install on Windows
+description: Install the Crossfire Editor on Windows x86_64 with the installer or the zip archive, and set up what scripts need.
+sidebar:
+  order: 2
+---
+
+import { Steps, Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+The editor is built for **Windows x86_64** (Windows 10 or 11). Everything it needs is inside the
+download, SDL included. Your graphics driver must support **Vulkan**, which current AMD, Intel and
+NVIDIA drivers do.
+
+## Install
+
+There are two downloads. Both are on the [Download page](/download/) (and the
+[GitHub releases](https://github.com/bcrowe306/crossfire-editor/releases), marked pre-release).
+
+<Tabs>
+<TabItem label="Installer">
+
+<Steps>
+
+1. Download `crossfire-editor-<version>-windows-x64-setup.exe` and run it.
+
+2. If SmartScreen says "Windows protected your PC", click **More info**, then **Run anyway**
+   (see [below](#common-problems)).
+
+3. Choose where to install it and whether you want a desktop icon. The installer adds
+   **Crossfire Editor** to the Start menu, and an uninstaller.
+
+</Steps>
+
+Installed in Program Files, the editor keeps its settings and build folders in
+`%APPDATA%\crossfire-editor`, and copies the demo project to `Documents\Crossfire Editor` the
+first time it starts.
+
+</TabItem>
+<TabItem label="zip">
+
+<Steps>
+
+1. Download `crossfire-editor-<version>-windows-x64.zip`.
+
+2. Unpack it anywhere (right-click > **Extract All...**).
+
+3. Run `crossfire-editor.exe` in the unpacked folder.
+
+</Steps>
+
+From the zip, the editor keeps its settings (`editor.ini`) beside itself and opens the demo
+project from `examples\demo_project` in the same folder.
+
+</TabItem>
+</Tabs>
+
+## First run
+
+The editor opens the **demo project**. Press **F5** to play it: a space game, and from its menu a
+platformer level. Close the game window (or press **Shift+F5**) to come back.
+
+To open another project, use **File > Open Project** (Ctrl+O). The
+[editor manual](/manual/getting-started/) explains the window.
+
+## Scripts: Odin and a linker
+
+Projects **without** scripts play and export with nothing else installed: the editor ships a
+prebuilt game player.
+
+Projects **with** scripts are compiled, which needs two things:
+
+<Steps>
+
+1. **Odin.** Open **Edit > Settings...** (Ctrl+,) **> Toolchain** and press **Install Odin
+   dev-2026-10**. It downloads the version the engine uses (about 70 MB) into
+   `%APPDATA%\crossfire-editor`. If you already have Odin `dev-2026-10` in your `PATH`, the editor
+   uses that.
+
+2. **Visual Studio Build Tools**, whose linker Odin uses. The editor can't install it. Download
+   [Build Tools for Visual Studio](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022)
+   and, in the installer, tick the **Desktop development with C++** workload (it includes the
+   Windows SDK). The full Visual Studio with that workload works too.
+
+3. Check **Settings > Toolchain** again: **Odin compiler** and **Linker (Visual Studio)** should
+   have a green check. Odin finds the linker and the Windows SDK by itself; you don't need a
+   developer command prompt.
+
+</Steps>
+
+The demo project has scripts, so it needs these too. See
+[Settings and the toolchain](/manual/settings-and-toolchain/) for every row of that tab.
+
+## Common problems
+
+**SmartScreen blocks the installer or the editor.** The downloads aren't signed with a paid
+certificate yet, so Windows warns about them. Click **More info**, then **Run anyway**. Games you
+export get the same warning on other people's computers.
+
+**The editor doesn't start, or says it can't create a Vulkan device.** Update your graphics
+driver from AMD, Intel or NVIDIA. Old or generic drivers (like "Microsoft Basic Display Adapter",
+or some remote desktop sessions) have no Vulkan.
+
+**Play says "No Odin compiler" or the build fails at linking.** The project has scripts: install
+Odin and the Build Tools as above. The **Output** tab (Ctrl+J opens the bottom panel) shows what
+the build said.
+
+**A game with scripts won't export for Linux or macOS from Windows.** Games with scripts are
+compiled on the system they're for. Projects without scripts export for all three desktop systems
+from any of them. See [Exporting](/manual/exporting/#which-computer-can-export-what).
+
+<Aside>
+Next: [Your first game](/getting-started/first-game/).
+</Aside>

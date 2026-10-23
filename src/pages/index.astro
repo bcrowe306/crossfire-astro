@@ -1,0 +1,266 @@
+---
+/*
+The landing page: the hero with the editor's recording, then the engine's features as you scroll,
+a real script, everything else in a grid, and the way in.
+*/
+import { Image } from 'astro:assets';
+import { Code } from 'astro:components';
+import SiteLayout from '../layouts/SiteLayout.astro';
+import release from '../data/generated/release.json';
+import viewportForest from '../assets/shots/viewport-forest.jpg';
+import codeEditor from '../assets/shots/code-editor.jpg';
+import animationPanel from '../assets/shots/animation-panel.jpg';
+import sceneSpace from '../assets/shots/scene-space.jpg';
+import inputSettings from '../assets/shots/input-settings.jpg';
+import playConsole from '../assets/shots/play-console.jpg';
+
+const tag = release.tag;
+
+// A real script from the editor's demo project (examples/demo_project/scripts/coin.odin)
+const coin = `package scripts
+
+import "core:math"
+import e "engine:."
+import sdl "vendor:sdl3"
+
+// A coin: an Area with a sprite. Touch it to collect it.
+Coin :: struct {
+	using script: e.Script,
+	// Set per coin in the inspector (or from an LDtk field)
+	value: int \`export:"default=1 min=1"\`,
+	sprite: ^e.Node,
+	time: f32,
+	taken: bool,
+}
+
+@(init)
+register_Coin :: proc "contextless" () {
+	e.Script_Register(Coin, {
+		ready = proc(self: ^Coin) {
+			self.sprite = e.Node_FindChild(self.node, "Sprite")
+			self.time = self.node.position.x * 0.05
+		},
+		update = proc(self: ^Coin, _: []sdl.Event, deltaTime: f64) {
+			self.time += f32(deltaTime)
+			if self.sprite != nil do self.sprite.position.y = math.sin(self.time * 4) * 1.5
+		},
+		collisionEnter = proc(self: ^Coin, hit: ^e.Collision) {
+			if self.taken || !e.Node_Is(hit.other, e.CharacterMover) do return
+			self.taken = true
+			if state := e.Global(GameState); state != nil do state.coins += self.value
+			e.Game_PlaySound(self.game, SOUND_COIN)
+			e.Scene_RemoveNode(self.scene, self.node.id)
+		},
+	})
+}`;
+
+const features = [
+	{
+		kicker: 'Scene editor',
+		title: 'Build scenes like you mean it',
+		text: 'A viewport that renders your scene with the engine itself, so what you place is what the game draws. Nodes in a tree, components you reuse anywhere, undo for every edit.',
+		points: [
+			'Move, rotate, scale and transform tools with snapping, guides and align',
+			'Right-click menus on everything, multi-select, drag to reparent',
+			'Components (prefabs), scene settings, screen layers for HUDs',
+			'LDtk levels and Aseprite files straight in, reloaded when you save',
+		],
+		image: viewportForest,
+		alt: 'The editor showing a forest platformer level in the viewport',
+		link: { href: '/manual/scenes-and-nodes/', label: 'Scenes and nodes' },
+	},
+	{
+		kicker: 'Scripting',
+		title: 'Game code in Odin. With a real editor.',
+		text: 'Scripts are Odin: fast, simple, compiled. Attach several to a node, set their fields in the inspector, and write them in the built-in code editor with completion, signatures and errors from the Odin language server.',
+		points: [
+			'Exported fields become inspector controls: numbers, colors, assets, node links',
+			'Events and listeners wired from the inspector',
+			'Hot reload: save while the game plays, keep its state',
+			'Plugins: extend the editor itself in Odin',
+		],
+		image: codeEditor,
+		alt: 'The built-in code editor completing an engine procedure',
+		link: { href: '/manual/scripts/', label: 'Scripts' },
+	},
+	{
+		kicker: 'Animation',
+		title: 'Make it move',
+		text: 'Sprite sheets and Aseprite tags, a timeline that keys any property of any node, state machines that drive animations from parameters your scripts set, and bones for skeletal characters.',
+		points: [
+			'Animation panel: frames, timing, play modes',
+			'Timeline: clips, curves, events that call your code',
+			'State machines with any-state transitions',
+			'Skeletons, skinned meshes, IK, DragonBones import',
+		],
+		image: animationPanel,
+		alt: 'The animation panel editing a snail sprite\'s walk cycle',
+		link: { href: '/manual/animation/', label: 'Animation' },
+	},
+	{
+		kicker: 'Gameplay',
+		title: 'Physics, light and particles',
+		text: 'Box2D physics with a character mover built for platformers, collision shapes traced from your sprites, 2D lights with shadows, and particles on the CPU or tens of thousands on the GPU.',
+		points: [
+			'Bodies, areas, ray casts, joints, one-way platforms',
+			'Pathfinding agents that walk around each other',
+			'Point and spot lights, occluders, ambient light',
+			'Particles, lines, trails, shaders and screen effects',
+		],
+		image: sceneSpace,
+		alt: 'A space shooter scene with physics bodies and sprites',
+		link: { href: '/manual/physics/', label: 'Physics' },
+	},
+	{
+		kicker: 'Input',
+		title: 'Every player, every device',
+		text: 'Name your controls once as input actions and bind them to keys, mouse, gamepads and touch. Local multiplayer gives each player their own device; players can rebind in your game.',
+		points: [
+			'Actions with deadzones, axes and vectors',
+			'Local multiplayer with joining and split screen',
+			'On-screen joysticks and buttons for touch',
+			'Rebinding saved with the player\'s progress',
+		],
+		image: inputSettings,
+		alt: 'Project Settings listing input actions and their bindings',
+		link: { href: '/manual/input/', label: 'Input' },
+	},
+	{
+		kicker: 'Ship it',
+		title: 'Play, inspect, export',
+		text: 'Press Play and the game runs in its own process. Watch it live from the editor, pause it, step a frame, change values while it runs. Then export one file for Linux, Windows, macOS or a page for the web.',
+		points: [
+			'Live view: the running scene\'s nodes and frame times',
+			'Single-file desktop exports, web exports through Emscripten',
+			'Prebuilt players: no compiler needed for scriptless games',
+			'Git built in, project archives, translations',
+		],
+		image: playConsole,
+		alt: 'The editor\'s console after pressing Play',
+		link: { href: '/manual/exporting/', label: 'Exporting' },
+	},
+];
+
+const more = [
+	{ icon: 'TM', title: 'Tilemaps', text: 'Paint tiles, terrains that autotile, collision from tile properties.', href: '/manual/tilemaps/' },
+	{ icon: 'UI', title: 'UI controls', text: 'Panels, buttons, bars, text fields, layouts and themes.', href: '/manual/ui/' },
+	{ icon: '""', title: 'Dialogue', text: 'Branching conversations, variables, Yarn Spinner import.', href: '/manual/dialogue/' },
+	{ icon: 'dB', title: 'Audio', text: 'Mix buses with effects, positional sound, layered music.', href: '/manual/sound/' },
+	{ icon: 'FX', title: 'Shaders', text: 'Built-in effects, your own GLSL, screen effects like CRT and bloom.', href: '/manual/shaders/' },
+	{ icon: 'Aa', title: 'Localization', text: 'Translation tables and text that switches language.', href: '/manual/localization/' },
+	{ icon: 'cam', title: 'Camera tools', text: 'Parallax, camera rooms, smooth zoom, split screen views.', href: '/manual/camera-tools/' },
+	{ icon: '{}', title: 'Plugins', text: 'Commands, importers and inspector rows of your own, in Odin.', href: '/manual/plugins/' },
+];
+---
+
+<SiteLayout
+	title="Crossfire: a 2D game engine and editor written in Odin"
+	description="Crossfire is a 2D game engine and editor written entirely in Odin: a scene editor, Odin scripting with a built-in code editor, physics, animation, lighting, particles, and exports to desktop and the web."
+>
+	<section class="cf-hero">
+		<div class="cf-slash cf-slash-a" aria-hidden="true"></div>
+		<div class="cf-slash cf-slash-b" aria-hidden="true"></div>
+		<div class="cf-wrap cf-hero-grid">
+			<div>
+				{tag && (
+					<a class="cf-tag" href="/download/">
+						<b>{tag.includes('-dev') ? 'Dev build' : 'Release'}</b> {tag} is out
+					</a>
+				)}
+				<h1>
+					<span>Build 2D games.</span>
+					<span class="cf-fire-text">All in Odin.</span>
+				</h1>
+				<p class="cf-lead">
+					Crossfire is a 2D game engine and a full editor for it, written entirely in Odin: the
+					engine, the editor, its code editor, and your game's scripts. Fast to start, simple to
+					read, nothing hidden.
+				</p>
+				<div class="cf-hero-actions">
+					<a class="cf-btn cf-btn-fire" href="/download/">Download {tag && <small>{tag}</small>}</a>
+					<a class="cf-btn cf-btn-ghost" href="/getting-started/">Get started</a>
+				</div>
+				<p class="cf-hero-note">Linux, Windows and macOS. Free and open source, <a href="/about/#license">MIT licensed</a>.</p>
+			</div>
+			<div class="cf-screen">
+				<video autoplay muted loop playsinline preload="metadata" poster="/media/hero-poster.jpg" aria-label="The Crossfire Editor in use: a level, the code editor, the animation panel">
+					<source src="/media/hero.webm" type="video/webm" />
+					<source src="/media/hero.mp4" type="video/mp4" />
+				</video>
+			</div>
+		</div>
+	</section>
+
+	<div class="cf-stats">
+		<div><b class="cf-fire-text">100%</b><span>Odin: engine, editor, scripts</span></div>
+		<div><b>4</b><span>Export targets: Linux, Windows, macOS, web</span></div>
+		<div><b>1 file</b><span>Desktop games ship as one executable</span></div>
+		<div><b>MIT</b><span>Open source, yours to change</span></div>
+	</div>
+
+	<section class="cf-section">
+		<div class="cf-wrap">
+			{features.map((f, i) => (
+				<article class={`cf-feature ${i % 2 ? 'is-flipped' : ''}`} data-reveal>
+					<div class="cf-feature-media cf-screen">
+						<Image src={f.image} alt={f.alt} widths={[640, 960, 1400]} sizes="(max-width: 62rem) 100vw, 640px" loading="lazy" />
+					</div>
+					<div>
+						<p class="cf-kicker">{String(i + 1).padStart(2, '0')} · {f.kicker}</p>
+						<h2 class="cf-h2">{f.title}</h2>
+						<p class="cf-lead">{f.text}</p>
+						<ul>{f.points.map((p) => <li>{p}</li>)}</ul>
+						<a class="cf-feature-link" href={f.link.href}>Read: {f.link.label} →</a>
+					</div>
+				</article>
+			))}
+		</div>
+	</section>
+
+	<section class="cf-section cf-code-section">
+		<div class="cf-wrap cf-code-grid">
+			<div data-reveal>
+				<p class="cf-kicker">Real code</p>
+				<h2 class="cf-h2">This is a <span class="cf-fire-text">whole</span> script</h2>
+				<p class="cf-lead">
+					A coin from the demo platformer. It bobs, it notices the player, it adds to the score in
+					a global and plays a sound. The <code>value</code> field shows up in the inspector. No
+					boilerplate, no build files: save it and press Play.
+				</p>
+				<a class="cf-feature-link" href="/examples/">More examples →</a>
+			</div>
+			<div class="cf-code" data-reveal>
+				<div class="cf-code-title"><span>scripts/coin.odin</span><span>Odin</span></div>
+				<Code code={coin} lang="odin" theme="github-dark-default" />
+			</div>
+		</div>
+	</section>
+
+	<section class="cf-section">
+		<div class="cf-wrap">
+			<p class="cf-kicker">And more</p>
+			<h2 class="cf-h2">Everything a 2D game needs</h2>
+			<div class="cf-grid">
+				{more.map((m) => (
+					<a class="cf-card" href={m.href} data-reveal>
+						<span class="cf-card-icon">{m.icon}</span>
+						<h3>{m.title}</h3>
+						<p>{m.text}</p>
+					</a>
+				))}
+			</div>
+		</div>
+	</section>
+
+	<section class="cf-section cf-cta">
+		<div class="cf-wrap" data-reveal>
+			<p class="cf-kicker">Start now</p>
+			<h2 class="cf-h2">Your first game is <span class="cf-fire-text">ten minutes</span> away</h2>
+			<p class="cf-lead">Download the editor, open the demo, and change something. Then make your own.</p>
+			<div class="cf-hero-actions">
+				<a class="cf-btn cf-btn-fire" href="/download/">Download</a>
+				<a class="cf-btn cf-btn-ghost" href="/getting-started/first-game/">Your first game</a>
+			</div>
+		</div>
+	</section>
+</SiteLayout>

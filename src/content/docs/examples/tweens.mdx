@@ -1,0 +1,184 @@
+---
+title: Juice with tweens
+description: Small animations from code that make a game feel alive - a pickup that pops and fades, squash and stretch on landing, a pulsing prompt, floating score numbers and a sliding door.
+sidebar:
+  order: 13
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+A **tween** animates a value from where it is to where you say, over some time, with an easing
+curve. A few of them, in the right places, make a game feel much better: things pop, squash,
+bounce and fade instead of appearing and vanishing.
+
+A tween belongs to a node (`e.Tween_Create(node)`): it runs while that node runs, stops with
+pausing, follows the game's time scale, and is killed when the node is removed, so it never writes
+into freed memory. Its steps run one after another; `e.Tween_Parallel` makes the next step run
+together with the one before.
+
+This page is one file of helpers any script can call, and two small scripts.
+
+## The helpers
+
+```odin title="scripts/juice.odin"
+package scripts
+
+import e "engine:."
+import sdl "vendor:sdl3"
+
+/*
+Juice: small tweens for game feel. Each makes a tween on the node it animates, so the tween goes
+when the node does.
+*/
+
+// Pops a node up, grows and fades it, then removes it: a coin taken, an enemy defeated
+Juice_PopAndRemove :: proc(node: ^e.Node) {
+	tween := e.Tween_Create(node)
+	e.Tween_To(tween, &node.position, node.position + {0, -24}, 0.35, .OutBack)
+	e.Tween_Parallel(tween)
+	e.Tween_To(tween, &node.scale, node.scale * 1.6, 0.35, .OutQuad)
+	e.Tween_Parallel(tween)
+	e.Tween_To(tween, &node.tint, sdl.Color{255, 255, 255, 0}, 0.35)
+	e.Tween_Call(tween, proc(user: rawptr) {
+		node := cast(^e.Node)user
+		e.Scene_RemoveNode(node.scene, node.id)
+	}, node)
+}
+
+// Squashes a sprite flat and lets it spring back: landing, a hit, a jump pad
+Juice_Squash :: proc(sprite: ^e.Node, amount: f32 = 0.3) {
+	// The sprite may be mirrored (a negative x scale): keep its direction
+	side: f32 = sprite.scale.x < 0 ? -1 : 1
+	tween := e.Tween_Create(sprite)
+	e.Tween_FromTo(tween, &sprite.scale, [2]f32{side * (1 + amount), 1 - amount}, [2]f32{side, 1}, 0.3, .OutElastic)
+}
+
+// A number that floats up from a world position and fades: points scored, damage taken
+Juice_FloatingText :: proc(scene: ^e.Scene, at: [2]f32, text: string, color := sdl.Color{255, 230, 120, 255}) {
+	// CreateLabel copies the text, so a temporary string is fine
+	label := e.CreateLabel(scene, text, at, 18, color)
+	tween := e.Tween_Create(label)
+	e.Tween_To(tween, &label.position, at + {0, -40}, 0.8, .OutCubic)
+	e.Tween_Parallel(tween)
+	e.Tween_To(tween, &label.color, sdl.Color{color.r, color.g, color.b, 0}, 0.8, .InQuad)
+	e.Tween_Call(tween, proc(user: rawptr) {
+		label := cast(^e.Node)user
+		e.Scene_RemoveNode(label.scene, label.id)
+	}, label)
+}
+
+// Slides a node (a door, a platform) by `offset` over `seconds`, easing in and out
+Juice_Slide :: proc(node: ^e.Node, offset: [2]f32, seconds: f32 = 0.6) {
+	tween := e.Tween_Create(node)
+	e.Tween_To(tween, &node.position, node.position + offset, seconds, .InOutCubic)
+}
+```
+
+## Two scripts that use them
+
+```odin title="scripts/pulse.odin"
+package scripts
+
+import e "engine:."
+
+/*
+Pulse: on any node (a "Press Start" label, a pickup, a button). Grows and shrinks it forever.
+*/
+Pulse :: struct {
+	using script: e.Script,
+	size: f32 `export:"default=1.1 min=1 max=3"`,
+	seconds: f32 `export:"default=0.5 min=0.05 max=5"`,
+}
+
+@(init)
+register_Pulse :: proc "contextless" () {
+	e.Script_Register(Pulse, {
+		ready = proc(self: ^Pulse) {
+			base := self.node.scale
+			tween := e.Tween_Create(self.node)
+			e.Tween_To(tween, &self.node.scale, base * self.size, self.seconds, .InOutSine)
+			e.Tween_To(tween, &self.node.scale, base, self.seconds, .InOutSine)
+			// -1: again and again
+			e.Tween_SetLoops(tween, -1)
+		},
+	})
+}
+```
+
+```odin title="scripts/landing_squash.odin"
+package scripts
+
+import e "engine:."
+
+/*
+LandingSquash: on a CharacterMover with a "Sprite" child. Squashes the sprite each time the mover
+lands (its onLanded event).
+*/
+LandingSquash :: struct {
+	using script: e.Script,
+	amount: f32 `export:"default=0.3 min=0 max=0.8"`,
+	sprite: ^e.Node,
+}
+
+@(init)
+register_LandingSquash :: proc "contextless" () {
+	e.Script_Register(LandingSquash, {
+		ready = proc(self: ^LandingSquash) {
+			self.sprite = e.Node_FindChild(self.node, "Sprite")
+			if self.sprite == nil || !e.Node_Is(self.node, e.CharacterMover) do return
+			mover := cast(^e.CharacterMover)self.node
+			e.Event_Subscribe(&mover.onLanded, proc(_: ^e.EventSubject, _: rawptr, _: e.EventData, user: rawptr) {
+				self := cast(^LandingSquash)user
+				Juice_Squash(self.sprite, self.amount)
+			}, self)
+		},
+	})
+}
+```
+
+## Using the helpers
+
+Where a coin is taken (instead of removing it at once, as in [Collect coins](/examples/collect-coins/)):
+
+```odin
+// Given: coin: ^e.Node, value: int
+Juice_FloatingText(coin.scene, e.Node_GetWorldPosition(coin), fmt.tprintf("+%d", value))
+Juice_PopAndRemove(coin)
+```
+
+When a lever is pulled, the door slides up 96 pixels:
+
+```odin
+// Given: door: ^e.Node
+Juice_Slide(door, {0, -96}, 0.8)
+```
+
+## How it works
+
+- **`e.Tween_To(tween, &value, to, seconds, ease)`** animates an `f32`, a `[2]f32` (positions,
+  scales) or an `sdl.Color` (tints) from wherever it is when the step starts. `e.Tween_FromTo` sets
+  the start too: the squash jumps to its flattened shape and springs back from there.
+- **Steps run in order**; `e.Tween_Parallel(tween)` makes the next one run with the previous one.
+  The pop moves, grows and fades together, then `e.Tween_Call` removes the node.
+- **Easing** shapes the motion: `.OutBack` overshoots and settles, `.OutElastic` wobbles,
+  `.InOutSine` breathes, `.OutBounce` bounces. Linear by default.
+- **`e.Tween_SetLoops(tween, -1)`** repeats the whole tween forever; a number repeats it that many
+  more times.
+- **Tweens are cheap**: they're freed when they finish or their node goes, so making one per hit
+  or pickup is fine. `e.Tween_Kill(tween)` stops one early; `e.Tween_Pause(tween, true)` holds it.
+- **Callbacks get `user`**, a pointer you pass in (the node here): Odin procedures don't capture
+  variables.
+
+## Try it
+
+- A hit flash: `e.Tween_FromTo(tween, &node.tint, sdl.Color{255, 80, 80, 255}, sdl.Color{255, 255, 255, 255}, 0.2)`.
+- A menu that slides in: tween a control's `offset` (where it sits from its anchor) from off screen.
+- The camera's zoom is an `f32` too: `e.Tween_To(tween, &camera.zoom, 1.5, 0.5, .OutCubic)`
+  (or `e.Camera2D_ZoomTo`).
+- For longer, hand-made animations (a cutscene, a boss's pattern), use an **Animator** and the
+  Timeline tab instead ([Keyframe animation](/manual/animation/)).
+
+<Aside>
+Tweens follow `e.Game_SetTimeScale` and stop during `e.Game_HitStop`, like everything else that
+moves with the game's time.
+</Aside>

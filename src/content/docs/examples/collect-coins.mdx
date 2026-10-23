@@ -1,0 +1,201 @@
+---
+title: Collect coins
+description: Coins on Areas that the player picks up, with a sound, a sparkle component, and a count kept in a global script that a label shows. From the demo's forest coins.
+sidebar:
+  order: 3
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+Coins that bob in place, and when the player touches one: it adds its value to the game's count,
+plays a sound, leaves a sparkle behind and disappears. A label shows the count. This is the demo
+project's forest coin (`scripts/coin.odin`).
+
+Three pieces:
+
+- **GameState**, a [global script](/manual/globals-data-saves/#global-scripts): one copy for the
+  whole game, so the count survives scene changes;
+- **Coin**, on an **Area** (a physics body that reports what comes in);
+- **CoinLabel**, on a **Label** that shows the count.
+
+## The scene
+
+<Steps>
+
+1. The coin, as a [component](/manual/components/) so you can place many: **Add Node > Area**
+   named **Coin**, with a **Sprite** named **Sprite** (the coin's image) and a **CollisionShape**
+   (Circle) under it. Right-click Coin > **Save as Component**: `components/coin.component.xml`.
+2. Optional: a sparkle, a one-shot **ParticleEmitter** saved as `components/sparkle.component.xml`
+   (see [Spawn bullets and effects](/examples/spawn-components/) for one that removes itself).
+3. Place coins: drag the component from the browser's Components folder into the scene, as many as
+   you like. Give the one on the hardest ledge a **Value** of 5 in the inspector.
+4. The player is a **CharacterMover** (the [platformer character](/examples/platformer-character/),
+   for example): coins react to movers only.
+5. A **Label** for the count, with the `CoinLabel` script. If the scene has a camera, put it on a
+   screen layer ([UI and the camera](/manual/ui/#screen-size-and-the-camera)).
+6. Import `coin.ogg`. Make the `GameState` script with **Kind: Global script**, which adds it to
+   **Project Settings > Globals**.
+
+</Steps>
+
+## The scripts
+
+```odin title="scripts/game_state.odin"
+package scripts
+
+import e "engine:."
+
+/*
+GameState: a global script (Project Settings > Globals). One for the whole game, from start to
+quit, across scenes. Any script reaches it with e.Global(GameState).
+*/
+GameState :: struct {
+	using script: e.Script,
+	coins: int,
+}
+
+@(init)
+register_GameState :: proc "contextless" () {
+	e.Script_Register(GameState, {
+		// A new level starts the count again
+		sceneChanged = proc(self: ^GameState, scene: ^e.Scene) {
+			self.coins = 0
+		},
+	})
+}
+```
+
+```odin title="scripts/coin.odin"
+package scripts
+
+import "core:math"
+import e "engine:."
+import sdl "vendor:sdl3"
+
+/*
+Coin: on an Area. Bobs its "Sprite" child up and down; when a CharacterMover comes in, adds
+`value` to the game's coins, plays a sound, leaves a sparkle and removes itself.
+*/
+Coin :: struct {
+	using script: e.Script,
+	value: int `export:"default=1 min=1"`,
+	// What's left where it was taken (optional)
+	sparkle: e.ComponentAsset `export:""`,
+	sprite: ^e.Node,
+	time: f32,
+	// Taken already: an Area can report several bodies in one frame
+	taken: bool,
+}
+
+@(init)
+register_Coin :: proc "contextless" () {
+	e.Script_Register(Coin, {
+		ready = proc(self: ^Coin) {
+			self.sprite = e.Node_FindChild(self.node, "Sprite")
+			// Worth more: drawn bigger
+			if self.sprite != nil && self.value > 1 do self.sprite.scale = {1.5, 1.5}
+			// Not all bobbing in step
+			self.time = self.node.position.x * 0.05
+		},
+		update = proc(self: ^Coin, _: []sdl.Event, deltaTime: f64) {
+			self.time += f32(deltaTime)
+			if self.sprite != nil do self.sprite.position.y = math.sin(self.time * 4) * 1.5
+		},
+		// On an Area: a body came inside it
+		collisionEnter = proc(self: ^Coin, hit: ^e.Collision) {
+			if self.taken || !e.Node_Is(hit.other, e.CharacterMover) do return
+			self.taken = true
+			if state := e.Global(GameState); state != nil do state.coins += self.value
+			e.Game_PlaySound(self.game, SOUND_COIN)
+			if self.sparkle.path != "" {
+				e.Scene_AddComponent(self.scene, self.sparkle, position = e.Node_GetWorldPosition(self.node))
+			}
+			// Gone at the start of the next frame (with its children)
+			e.Scene_RemoveNode(self.scene, self.node.id)
+		},
+	})
+}
+```
+
+```odin title="scripts/coin_label.odin"
+package scripts
+
+import "core:fmt"
+import "core:strings"
+import e "engine:."
+import sdl "vendor:sdl3"
+
+/*
+CoinLabel: on a Label. Shows the game's coin count, rewriting the text only when it changes.
+*/
+CoinLabel :: struct {
+	using script: e.Script,
+	shown: int,
+}
+
+@(init)
+register_CoinLabel :: proc "contextless" () {
+	e.Script_Register(CoinLabel, {
+		ready = proc(self: ^CoinLabel) {
+			self.shown = -1
+		},
+		update = proc(self: ^CoinLabel, _: []sdl.Event, _: f64) {
+			state := e.Global(GameState)
+			if state == nil || state.coins == self.shown || !e.Node_Is(self.node, e.Label) do return
+			self.shown = state.coins
+			// A label's text must outlive the frame: keep it in the node's own memory
+			label := cast(^e.Label)self.node
+			label.text = strings.clone(fmt.tprintf("Coins: %d", state.coins), e.Node_GetAllocator(self.node))
+		},
+	})
+}
+```
+
+The generated constant for the sound:
+
+```odin title="scripts/assets.odin (generated; the lines this page uses)"
+package scripts
+
+import e "engine:."
+
+SOUND_COIN :: e.SoundAsset{"assets/coin.ogg"}
+COMPONENT_COIN :: e.ComponentAsset{"components/coin.component.xml"}
+```
+
+## How it works
+
+- **`collisionEnter` on an Area** runs when a body comes inside it; `hit.other` is that body.
+  `e.Node_Is(hit.other, e.CharacterMover)` ignores anything that isn't the player (a rock rolling
+  through). See [Collision events](/manual/physics/#collision-events).
+- **`taken`** guards against counting twice: the coin is removed at the start of the next frame,
+  and two bodies could touch it in the same one.
+- **`e.Global(GameState)`** returns the game's one GameState, or `nil` when the project has none in
+  Project Settings > Globals. Checking for `nil` keeps a coin from crashing a test scene.
+- **`sceneChanged`** is a hook only globals get: the game moved to another scene. Here every
+  level starts at zero; drop it to keep coins across levels.
+- **`e.Scene_AddComponent`** puts a copy of a component in the scene. Without a parent its position
+  is in the world, so the coin passes its world position.
+- **The label** keeps its text in the node's own memory (`e.Node_GetAllocator`), freed with the
+  node. A `fmt.tprintf` string lasts only one frame. Writing only on change keeps that memory from
+  growing.
+
+## Try it
+
+- Coins from code, three in a row above a node:
+
+  ```odin
+  // Given: self: ^Coin
+  for i in 0 ..< 3 {
+  	e.Scene_AddComponent(self.scene, COMPONENT_COIN, parent = self.node, position = {f32(i) * 24, -40})
+  }
+  ```
+
+- Make the pickup pop instead of vanishing: see [Juice with tweens](/examples/tweens/).
+- Save the best total across runs: [Save and load progress](/examples/save-and-load/).
+- Announce the pickup as an event other scripts can listen to in the inspector
+  ([Events of your own](/manual/scripts/#events-of-your-own)).
+
+<Aside>
+The demo's coin spawns `components/coinparticles.component.xml`, a ParticleEmitter whose
+`CoinCollect` script starts it and removes it when its `onFinished` event fires.
+</Aside>

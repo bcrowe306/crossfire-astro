@@ -1,0 +1,39 @@
+---
+/*
+The header's right side in the docs: the site's own pages, then Starlight's social icons.
+(Overrides Starlight's SocialIcons: astro.config.mjs.)
+*/
+import Default from '@astrojs/starlight/components/SocialIcons.astro';
+import { SITE_LINKS } from '../site';
+const path = Astro.url.pathname;
+---
+
+<nav class="site-links" aria-label="Site">
+	{SITE_LINKS.map((l) => (
+		<a href={l.href} aria-current={path.startsWith(l.href) ? 'page' : undefined}>{l.label}</a>
+	))}
+</nav>
+<Default />
+
+<style>
+	.site-links {
+		display: none;
+		gap: 1.25rem;
+		margin-inline-end: 0.75rem;
+		font-family: var(--cf-display);
+		text-transform: uppercase;
+		font-size: 0.85rem;
+		letter-spacing: 0.06em;
+	}
+	@media (min-width: 72rem) {
+		.site-links { display: flex; }
+	}
+	.site-links a {
+		color: var(--sl-color-gray-2);
+		text-decoration: none;
+	}
+	.site-links a:hover,
+	.site-links a[aria-current='page'] {
+		color: var(--sl-color-accent);
+	}
+</style>

@@ -1,0 +1,231 @@
+---
+title: Build from source
+description: Build the Crossfire Engine and the Crossfire Editor from their Git repositories on Linux, Windows and macOS.
+sidebar:
+  order: 5
+---
+
+import { Steps, Tabs, TabItem, Aside, FileTree } from '@astrojs/starlight/components';
+
+You only need this to work on the engine or the editor themselves. To make games,
+[install a release](/getting-started/).
+
+The two repositories are separate:
+
+- [crossfire-engine](https://github.com/bcrowe306/crossfire-engine): the engine, a library
+  (`package crossfire`), and the player that runs projects.
+- [crossfire-editor](https://github.com/bcrowe306/crossfire-editor): the editor, built with the
+  [Skald](https://github.com/bcrowe306/Skald) GUI framework (a git submodule).
+
+The editor expects the engine **next to it**, in a folder named `odin_sdl_engine`:
+
+<FileTree>
+- workspace/
+  - odin_sdl_engine/ the engine (crossfire-engine)
+  - odin_sdl_editor/ the editor (crossfire-editor)
+</FileTree>
+
+(Set `ENGINE_DIR=/path/to/engine` on any `task` command to use another place.)
+
+## What you need
+
+| Tool | For |
+|---|---|
+| [Odin](https://odin-lang.org/docs/install/) `dev-2026-10` | Everything. Newer nightlies may work; older ones don't. Homebrew's `odin` usually lags behind |
+| [Task](https://taskfile.dev/installation/) | The editor's build commands (`Taskfile.yml`) |
+| Git | Cloning, with submodules (Skald, SDL, Box2D, ...) |
+| A C compiler | Box2D, built once from the engine's submodule |
+| CMake | The engine's static SDL (SDL3, SDL3_image, SDL3_ttf, SDL3_mixer, built from submodules and linked into the editor and every game) |
+| A C++ compiler and Python 3 | The shader tools (glslang, SDL_shadercross) that `task run` builds once, for projects' own shaders |
+| A Vulkan driver | Running the editor (it draws with Vulkan) |
+
+## Build the editor
+
+<Tabs syncKey="os">
+<TabItem label="Linux">
+
+<Steps>
+
+1. Install the tools. On Debian or Ubuntu (other distributions have the same packages under
+   similar names):
+
+   ```sh
+   sudo apt install build-essential clang cmake ninja-build pkg-config git \
+     libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev libxtst-dev libxfixes-dev \
+     libxkbcommon-dev libwayland-dev wayland-protocols libdecor-0-dev libegl1-mesa-dev libgl1-mesa-dev \
+     libdrm-dev libgbm-dev libpulse-dev libasound2-dev libpipewire-0.3-dev libudev-dev libdbus-1-dev \
+     libvulkan1 mesa-vulkan-drivers
+   ```
+
+   The `-dev` packages are what SDL's build looks for (windows, Wayland, sound, gamepads). Then
+   install [Odin dev-2026-10](https://github.com/odin-lang/Odin/releases/tag/dev-2026-10) and
+   [Task](https://taskfile.dev/installation/), and put both in your `PATH`.
+
+2. Clone both repositories side by side, with their submodules:
+
+   ```sh
+   git clone --recursive https://github.com/bcrowe306/crossfire-editor odin_sdl_editor
+   git clone --recursive https://github.com/bcrowe306/crossfire-engine odin_sdl_engine
+   cd odin_sdl_editor
+   ```
+
+3. One-time setup: the submodules, Odin's STB libraries (Skald uses them) and the engine's Box2D:
+
+   ```sh
+   task setup
+   ```
+
+4. Build and run the editor (optimized). The first run also builds the engine's static SDL, the
+   prebuilt player and the shader tools, which takes a while:
+
+   ```sh
+   task run
+   ```
+
+</Steps>
+
+</TabItem>
+<TabItem label="Windows">
+
+<Steps>
+
+1. Install the tools:
+   - [Visual Studio Build Tools](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022)
+     with the **Desktop development with C++** workload (the linker, the Windows SDK, and the
+     compiler CMake uses for SDL);
+   - [LLVM](https://github.com/llvm/llvm-project/releases) (clang and llvm-lib: Box2D's build
+     uses them);
+   - [CMake](https://cmake.org/download/), [Git for Windows](https://git-scm.com/download/win)
+     (it brings Git Bash), [Task](https://taskfile.dev/installation/), and
+     [Odin dev-2026-10](https://github.com/odin-lang/Odin/releases/tag/dev-2026-10).
+
+   Put them all in your `PATH`. Odin's Windows release already includes SDL's libraries and STB.
+
+2. In **Git Bash** (the build scripts are bash scripts), clone both repositories side by side:
+
+   ```sh
+   git clone --recursive https://github.com/bcrowe306/crossfire-editor odin_sdl_editor
+   git clone --recursive https://github.com/bcrowe306/crossfire-engine odin_sdl_engine
+   cd odin_sdl_editor
+   ```
+
+3. One-time setup, in Git Bash: the submodules, then the engine's Box2D and static SDL (built with
+   clang and Visual Studio). Odin's Windows release has STB built, so there's no `task stb` step:
+
+   ```sh
+   git submodule update --init --recursive
+   ../odin_sdl_engine/tools/build_box2d.sh
+   ../odin_sdl_engine/tools/build_sdl_static.sh
+   ```
+
+4. Build and run the editor:
+
+   ```sh
+   task run
+   ```
+
+   If Task can't run the engine's `.sh` scripts from its own shell on your machine, build with
+   Odin directly (this is the command `task build:release` runs):
+
+   ```sh
+   odin build . -collection:gui=Skald -collection:engine=../odin_sdl_engine -define:ENGINE_DIR=../odin_sdl_engine -resource:crossfire.rc -o:speed -out:build/release/crossfire-editor.exe
+   build/release/crossfire-editor.exe
+   ```
+
+</Steps>
+
+</TabItem>
+<TabItem label="macOS">
+
+<Steps>
+
+1. Install the tools: Xcode's command line tools, then the rest with
+   [Homebrew](https://brew.sh):
+
+   ```sh
+   xcode-select --install
+   brew install go-task cmake vulkan-loader molten-vk
+   ```
+
+   Install [Odin dev-2026-10](https://github.com/odin-lang/Odin/releases/tag/dev-2026-10) from
+   its release (`odin-macos-arm64-dev-2026-10.tar.gz`) and put it in your `PATH`. The Vulkan
+   loader and MoltenVK are what the editor draws with.
+
+2. Clone both repositories side by side, with their submodules:
+
+   ```sh
+   git clone --recursive https://github.com/bcrowe306/crossfire-editor odin_sdl_editor
+   git clone --recursive https://github.com/bcrowe306/crossfire-engine odin_sdl_engine
+   cd odin_sdl_editor
+   ```
+
+3. One-time setup: the submodules, Odin's STB libraries and the engine's Box2D:
+
+   ```sh
+   task setup
+   ```
+
+4. Build and run the editor. The first run also builds the engine's static SDL, the prebuilt
+   player and the shader tools, which takes a while:
+
+   ```sh
+   task run
+   ```
+
+5. Optional: build the app bundle and its disk image, like the releases (`dist/macos/`):
+
+   ```sh
+   task macos:deps
+   task macos:dist
+   ```
+
+</Steps>
+
+</TabItem>
+</Tabs>
+
+The editor opens its demo project (`examples/demo_project`). `task run -- path/to/MyGame` opens
+another. Press **F5** to play: the first time, the editor builds the engine's game player
+(progress in the **Output** tab).
+
+## Useful editor tasks
+
+`task` alone lists them all.
+
+| Command | What it does |
+|---|---|
+| `task run` | Build optimized (`build/release/`) and run. Program arguments go after `--` |
+| `task run:debug` | Build with debug info (slower) and run |
+| `task build`, `task build:release` | Build without running |
+| `task check` | Type-check the editor, with vet |
+| `task test` | The unit tests |
+| `task verify` | `check` and `test` |
+| `task prebuilt` | Build this system's prebuilt player, so projects without scripts play without compiling |
+| `task emsdk` | Install Emscripten for web exports (about 1 GB, needs Python 3) |
+| `task shadertools` | Build the shader compilers that projects' own GLSL shaders need |
+| `task ols` | Build the Odin language server for the built-in code editor (not needed if `ols` is in your `PATH`) |
+
+## Build only the engine
+
+The engine is a library. Its own repository builds and tests it without the editor:
+
+```sh
+git clone --recursive https://github.com/bcrowe306/crossfire-engine odin_sdl_engine
+cd odin_sdl_engine
+tools/build_box2d.sh                          # once: Box2D into box2d/lib
+tools/build_sdl_static.sh                     # once: SDL linked statically (needs CMake)
+odin check . -no-entry-point -vet-unused      # type-check the library
+odin test . -vet-unused -define:ODIN_TEST_FAIL_ON_BAD_MEMORY=true   # the tests (a leak fails)
+odin build player -out:player_bin             # the player: player_bin <project folder>
+```
+
+On Windows, run these in Git Bash. Without `build_sdl_static.sh`, games link the system's SDL3
+libraries instead (on Windows, the ones Odin ships).
+
+A game uses the engine as a package: `import e "engine:."`, built with
+`-collection:engine=<engine folder>`.
+
+<Aside type="tip">
+Changes to the engine are picked up by the editor's next Play: it rebuilds the player when any
+engine source is newer than it.
+</Aside>

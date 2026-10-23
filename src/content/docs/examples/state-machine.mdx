@@ -1,0 +1,152 @@
+---
+title: Animations from a state machine
+description: Let a StateMachine node pick a character's animation (idle, run, jump, fall, attack) from facts a script reports, and react when it enters a state.
+sidebar:
+  order: 11
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+Picking the right animation in code turns into a tangle of `if`s quickly: don't run while
+attacking, don't idle in the air, finish the attack before anything else. A **StateMachine** node
+does that bookkeeping. Your script only reports facts (how fast it moves, whether it's on the
+ground, "attack was pressed"); the machine's states and transitions, drawn in the **States** tab,
+decide what it's doing and play that state's animation.
+
+This page's **HeroBrain** script feeds the machine and plays a sound when a state starts. It goes
+on the character next to its movement script (the [platformer character](/examples/platformer-character/),
+minus the lines that play animations).
+
+## The scene
+
+<Steps>
+
+1. The character: a **CharacterMover** named **Hero** with the movement script, and under it an
+   **AnimatedSprite** named **Sprite** with animations **idle**, **run**, **jump**, **fall** and
+   **attack** (the attack not looping).
+2. Select Sprite, **Add Node > StateMachine**, named **Brain**. It goes inside the sprite and plays
+   its animations. Press **Edit in the States tab**.
+3. **Parameters** (**+ Parameter**): **speed** (Float), **vy** (Float), **grounded** (Bool, true),
+   **attack** (Trigger).
+4. **States** (**+ State**), each with **Plays** set to the animation of the same name: idle (the
+   start state), run, jump, fall, attack.
+5. **Transitions** (select a state, **+ Transition to**), with these **When** conditions ("idle,
+   run" is one transition from each):
+
+   | From | To | When |
+   |---|---|---|
+   | idle | run | `speed > 10 and grounded` |
+   | run | idle | `speed <= 10` |
+   | idle, run | jump | `!grounded and vy < 0` |
+   | idle, run | fall | `!grounded and vy >= 0` |
+   | jump | fall | `vy >= 0` |
+   | fall | idle | `grounded` |
+   | \* (any state) | attack | `attack` |
+   | attack | idle | empty, with **When its animation ends** ticked |
+
+6. Give Hero a second script (**Add script**), `HeroBrain`, after the movement script: scripts on a
+   node run in order, so it reads the velocity after this frame's move.
+7. Project Settings > **Input**: an action **attack** (J, the left mouse button, the gamepad's
+   West button). Import a `swing.wav`.
+
+</Steps>
+
+[State machines](/manual/state-machines/) explains the States tab, conditions and **After**.
+
+## The script
+
+```odin title="scripts/hero_brain.odin"
+package scripts
+
+import e "engine:."
+import sdl "vendor:sdl3"
+
+/*
+HeroBrain: on a CharacterMover, after its movement script. Reports the facts to the StateMachine
+"Sprite/Brain" (speed, vertical speed, on the ground, attack pressed), which picks the animation,
+and plays a swing sound whenever the machine enters "attack".
+*/
+HeroBrain :: struct {
+	using script: e.Script,
+	brain: ^e.StateMachine `export:"default=Sprite/Brain"`,
+	swing: e.SoundAsset `export:""`,
+}
+
+@(private="file")
+onStateEntered :: proc(_: ^e.EventSubject, _: rawptr, data: e.EventData, user: rawptr) {
+	self := cast(^HeroBrain)user
+	state, _ := data.(string)
+	switch state {
+	case "attack":
+		if self.swing.path != "" do e.Game_PlaySound(self.game, self.swing)
+	case "jump":
+		e.Game_PlaySound(self.game, SOUND_JUMP)
+	}
+}
+
+@(init)
+register_HeroBrain :: proc "contextless" () {
+	e.Script_Register(HeroBrain, {
+		ready = proc(self: ^HeroBrain) {
+			// The same as Events > onStateEntered > Listen... in the inspector, from code
+			if self.brain != nil do e.Event_Subscribe(&self.brain.onStateEntered, onStateEntered, self)
+		},
+		update = proc(self: ^HeroBrain, _: []sdl.Event, _: f64) {
+			if self.brain == nil || !e.Node_Is(self.node, e.CharacterMover) do return
+			mover := cast(^e.CharacterMover)self.node
+			e.StateMachine_SetFloat(self.brain, "speed", abs(mover.velocity.x))
+			e.StateMachine_SetFloat(self.brain, "vy", mover.velocity.y)
+			e.StateMachine_SetBool(self.brain, "grounded", mover.onFloor)
+			// A Trigger is used up by the transition that reads it: one attack per press
+			if e.Input_IsActionJustPressed(ACTION_ATTACK) do e.StateMachine_SetTrigger(self.brain, "attack")
+		},
+	})
+}
+
+// Whether it's attacking now (the movement script can slow down meanwhile)
+HeroBrain_Attacking :: proc(self: ^HeroBrain) -> bool {
+	return self.brain != nil && e.StateMachine_Is(self.brain, "attack")
+}
+```
+
+```odin title="scripts/assets.odin (generated; the lines this page uses)"
+package scripts
+
+import e "engine:."
+
+SOUND_JUMP :: e.SoundAsset{"assets/jump.ogg"}
+
+ACTION_ATTACK :: "attack"
+```
+
+## How it works
+
+- **The machine runs itself.** Each frame it checks the transitions out of its state, in the order
+  they were made, takes the first whose condition holds (at most one a frame) and plays the new
+  state's animation on the AnimatedSprite it **Animates** (its parent unless you pick another).
+- **Parameters** are the script's only contact with it: `e.StateMachine_SetFloat`, `SetBool` and
+  `SetTrigger`. A Trigger stays set until a transition that reads it is taken, so a press during
+  a jump still attacks.
+- **The attack plays out.** Its way back to idle waits for **When its animation ends**; nothing
+  else leaves attack, so it can't be cut short.
+- **`e.Event_Subscribe`** attaches a procedure to the machine's **onStateEntered** event; its data
+  is the state's name. The procedure gets `self` back through the last argument (`user`).
+- **Asking it.** `e.StateMachine_Is(brain, "attack")`, `e.StateMachine_Current(brain)` and
+  `e.StateMachine_TimeInState(brain)` tell other code what it's doing, like
+  `HeroBrain_Attacking` here.
+
+## Try it
+
+- A hurt state: a Trigger **hurt**, a transition from **\*** to **hurt** when `hurt`, and from hurt
+  to idle **After** 0.4 seconds. Set the trigger where the character takes damage.
+- Force a state from code, whatever the transitions say: `e.StateMachine_Travel(brain, "idle")`
+  (a respawn).
+- Watch it while the game plays: the [Live tab](/manual/live/) shows the machine's state as it
+  changes.
+- Shake the camera when it lands: a state **land** between fall and idle, and a `case "land":` in
+  the handler calling `e.Camera2D_Shake(self.scene.camera, 2, 0.1)`.
+
+<Aside>
+The same node drives anything with states, not only animations: a door (closed, opening, open) or
+an enemy (patrol, chase, flee), with an empty **Plays** and your code reacting to onStateEntered.
+</Aside>

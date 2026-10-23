@@ -1,0 +1,181 @@
+---
+title: A platformer character
+description: Run, jump with coyote time and a jump buffer, short hops, falling through one-way platforms, animations and a mirrored sprite, on a CharacterMover. From the demo's forest hero.
+sidebar:
+  order: 2
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+A side-view character that feels good to control: it runs, jumps, makes a short hop when you let
+go early, still jumps if you press a moment too late (after running off a ledge) or a moment too
+early (just before landing), drops through one-way platforms, and plays idle, run, jump and fall
+animations. It's the movement of the demo project's forest hero (`scripts/hero.odin`), without
+the combat.
+
+## The scene
+
+<Steps>
+
+1. **Add Node > CharacterMover**, named **Hero**. Under it:
+   - an **AnimatedSprite** named **Sprite** with animations **idle**, **run**, **jump** and
+     **fall** ([Sprites and images](/manual/sprites-and-images/)), drawn facing right, placed so
+     its feet are at the Hero's origin;
+   - a **CollisionShape** with **Shape: Capsule** around the body.
+2. Ground: a **StaticBody** with rectangle CollisionShapes (or an
+   [LDtk level](/manual/levels/) or [tilemap](/manual/tilemaps/) with collision). For platforms
+   you can jump up through, tick **One-way** on their shapes.
+3. A **Camera** node in the scene (the first one is the scene's camera).
+4. Project Settings > **Input**: an action **jump** bound to Space, W, Up and the gamepad's
+   **South** button. `ui_left`, `ui_right` and `ui_down` are there already.
+5. Import a jump sound (`jump.ogg`), then give Hero a script named `Platformer`.
+
+</Steps>
+
+## The script
+
+```odin title="scripts/platformer.odin"
+package scripts
+
+import e "engine:."
+import sdl "vendor:sdl3"
+
+/*
+Platformer: on a CharacterMover. Runs with ui_left / ui_right, jumps with "jump", falls with
+scripted gravity (the project's gravity only moves DynamicBodies), and forgives:
+- coyote time: a jump still works for a moment after running off a ledge;
+- a jump buffer: a jump pressed just before landing happens on landing;
+- short hops: letting go of jump while rising cuts the rise.
+Holding ui_down drops through one-way platforms. The camera follows it.
+*/
+Platformer :: struct {
+	using script: e.Script,
+	speed: f32 `export:"default=180 min=20 max=600"`,
+	jumpSpeed: f32 `export:"default=420 min=50 max=1000"`,
+	gravity: f32 `export:"default=1100 min=0 max=4000"`,
+	// The fastest it falls, in pixels per second
+	maxFall: f32 `export:"default=600 min=50 max=2000"`,
+	// Seconds of forgiveness, both ways
+	coyoteTime: f32 `export:"default=0.1 min=0 max=0.5"`,
+	bufferTime: f32 `export:"default=0.12 min=0 max=0.5"`,
+
+	sprite: ^e.AnimatedSprite,
+	// Seconds left to still jump after leaving the floor, and of a jump pressed early
+	coyote, jumpBuffer: f32,
+	// 1 facing right, -1 left
+	facing: f32,
+}
+
+@(init)
+register_Platformer :: proc "contextless" () {
+	e.Script_Register(Platformer, {
+		ready = proc(self: ^Platformer) {
+			self.facing = 1
+			if sprite := e.Node_FindChild(self.node, "Sprite"); e.Node_Is(sprite, e.AnimatedSprite) {
+				self.sprite = cast(^e.AnimatedSprite)sprite
+			}
+			// Start the camera on the hero, not sliding over from where it was placed
+			if self.scene.camera != nil do e.Camera2D_SnapTo(self.scene.camera, e.Node_GetWorldPosition(self.node))
+		},
+		update = proc(self: ^Platformer, events: []sdl.Event, deltaTime: f64) {
+			mover := cast(^e.CharacterMover)self.node
+			dt := f32(deltaTime)
+
+			// Run: -1 to 1 (a stick gives anything between)
+			direction := e.Input_GetAxis(ACTION_UI_LEFT, ACTION_UI_RIGHT)
+			mover.velocity.x = direction * self.speed
+			if direction != 0 do self.facing = direction < 0 ? -1 : 1
+
+			// The two timers: refilled while on the floor / on the press, counting down otherwise
+			self.coyote = mover.onFloor ? self.coyoteTime : max(self.coyote - dt, 0)
+			self.jumpBuffer = e.Input_IsActionJustPressed(ACTION_JUMP) ? self.bufferTime : max(self.jumpBuffer - dt, 0)
+			if self.jumpBuffer > 0 && self.coyote > 0 {
+				mover.velocity.y = -self.jumpSpeed
+				self.jumpBuffer, self.coyote = 0, 0
+				e.Game_PlaySound(self.game, SOUND_JUMP)
+			}
+			// A short hop: letting go while rising cuts the rise
+			if e.Input_IsActionJustReleased(ACTION_JUMP) && mover.velocity.y < 0 do mover.velocity.y *= 0.45
+
+			// Gravity is the script's to add (y points down), up to a top falling speed
+			mover.velocity.y = min(mover.velocity.y + self.gravity * dt, self.maxFall)
+			// Through one-way platforms while down is held
+			mover.dropThrough = e.Input_IsActionPressed(ACTION_UI_DOWN)
+			e.CharacterMover_Move(mover, deltaTime)
+
+			if self.sprite != nil {
+				animation := "idle"
+				if !mover.onFloor {
+					animation = mover.velocity.y < 0 ? "jump" : "fall"
+				} else if direction != 0 {
+					animation = "run"
+				}
+				// Does nothing when that animation is already playing
+				e.AnimationPlayer_Play(&self.sprite.animation, animation)
+				// The sheet faces right; a negative scale mirrors it
+				self.sprite.scale.x = self.facing
+			}
+			// The camera eases toward a point a little above the feet
+			if self.scene.camera != nil {
+				e.Camera2D_Follow(self.scene.camera, e.Node_GetWorldPosition(self.node) - {0, 24}, deltaTime)
+			}
+		},
+	})
+}
+```
+
+The generated constants it uses:
+
+```odin title="scripts/assets.odin (generated; the lines this page uses)"
+package scripts
+
+import e "engine:."
+
+SOUND_JUMP :: e.SoundAsset{"assets/jump.ogg"}
+
+ACTION_UI_LEFT :: "ui_left"
+ACTION_UI_RIGHT :: "ui_right"
+ACTION_UI_DOWN :: "ui_down"
+ACTION_JUMP :: "jump"
+```
+
+## How it works
+
+- **A CharacterMover doesn't fall by itself.** The project's gravity moves DynamicBodies; a mover
+  moves only by `velocity`, so the script adds `gravity * dt` to `velocity.y` every frame and caps
+  it at `maxFall`.
+- **`e.CharacterMover_Move`** moves by the velocity, slides along floors and walls, and removes the
+  part that ran into something: landing sets `velocity.y` to 0. After the move, `mover.onFloor`
+  says whether it stands on something.
+- **Coyote time.** `coyote` is refilled every frame on the floor and counts down in the air. A jump
+  is allowed while it's above 0, so running off a ledge leaves a tenth of a second to jump.
+- **The jump buffer.** A press sets `jumpBuffer`, which counts down. The jump happens on the first
+  frame both timers are above 0: a press just before landing jumps on landing.
+- **Short hops.** On release, a rising character keeps 45% of its upward speed.
+- **One-way platforms** let a mover through from below. `dropThrough` lets it through from above
+  too, while set ([One-way platforms](/manual/physics/#one-way-platforms)).
+- **The camera.** `e.Camera2D_Follow` eases the scene's camera toward a point with the camera's
+  follow settings (smoothing, deadzone). See [Camera follow, shake and
+  hitstop](/examples/camera-shake-hitstop/) for keeping it inside the level.
+
+## Try it
+
+- Floaty or snappy: change **Gravity** and **Jump speed** in the inspector while the game runs,
+  in the [Live tab](/manual/live/), until it feels right, then set them on the node.
+- A double jump: add a `jumps: int` field, set it to 0 whenever `mover.onFloor`, and when jump is
+  pressed in the air with `jumps < 1`, add 1 and set `mover.velocity.y` again.
+- Play a landing sound: listen to the mover's **onLanded** event (inspector, **Events >
+  Listen...**), or subscribe from `ready`:
+
+  ```odin
+  // Given: self: ^Platformer, mover: ^e.CharacterMover
+  e.Event_Subscribe(&mover.onLanded, proc(_: ^e.EventSubject, source: rawptr, _: e.EventData, user: rawptr) {
+  	self := cast(^Platformer)user
+  	e.Game_PlaySound(self.game, SOUND_JUMP)
+  }, self)
+  ```
+
+<Aside>
+The forest hero (`scripts/hero.odin` in the demo project) adds a sword attack, knockback when hurt,
+falling into pits and respawning on the last firm ground.
+</Aside>

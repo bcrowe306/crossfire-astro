@@ -1,0 +1,293 @@
+{
+	"$comment": "Areas of the engine API reference (scripts/build-api.mjs). Every top-level .odin file of the engine (not _test.odin) must be listed in exactly one area: the build fails on unmapped or doubly mapped files. order: the sidebar order (the index page is 0); label: the sidebar label when it differs from the title.",
+	"areas": [
+		{
+			"slug": "core",
+			"title": "Core: application, game, scenes and nodes",
+			"label": "Core",
+			"order": 1,
+			"description": "The application and its frame loop, the game and its scenes, nodes and their transforms, events, timers and the package's memory model.",
+			"files": [
+				"app.odin",
+				"game.odin",
+				"scene.odin",
+				"node.odin",
+				"transform.odin",
+				"event.odin",
+				"node_events.odin",
+				"timer.odin",
+				"ticker.odin",
+				"layers.odin",
+				"custom_nodes.odin"
+			]
+		},
+		{
+			"slug": "rendering",
+			"title": "Rendering",
+			"order": 2,
+			"description": "Drawing shapes and textures in a node's space, render targets, texture atlases, tile batches and the choice of renderer.",
+			"files": [
+				"primitives.odin",
+				"render_target.odin",
+				"render_backend.odin",
+				"atlas.odin",
+				"tile_batch.odin"
+			]
+		},
+		{
+			"slug": "text-and-fonts",
+			"title": "Text and fonts",
+			"order": 3,
+			"description": "Drawing and measuring text, bitmap and MSDF fonts, and localization.",
+			"files": [
+				"text_primitives.odin",
+				"fonts.odin",
+				"font_compile.odin",
+				"localization.odin"
+			]
+		},
+		{
+			"slug": "camera",
+			"title": "Camera",
+			"order": 4,
+			"description": "The Camera2D node, follow modes and pans, parallax layers, camera zones, smooth zoom and camera views.",
+			"files": [
+				"camera.odin",
+				"camera_tools.odin"
+			]
+		},
+		{
+			"slug": "input",
+			"title": "Input",
+			"order": 5,
+			"description": "Keyboard, mouse and gamepad state, input actions, and rebinding.",
+			"files": [
+				"input.odin",
+				"input_rebind.odin"
+			]
+		},
+		{
+			"slug": "physics",
+			"title": "Physics",
+			"order": 6,
+			"description": "The Box2D world, physics nodes and joints, contact and area events, queries, materials, collision traced from images and debug drawing.",
+			"files": [
+				"physics.odin",
+				"physics_nodes.odin",
+				"physics_events.odin",
+				"physics_joints.odin",
+				"physics_debug.odin",
+				"physics_material.odin",
+				"collision_trace.odin"
+			]
+		},
+		{
+			"slug": "audio",
+			"title": "Audio",
+			"order": 7,
+			"description": "SDL_mixer setup, sound and music nodes, mix buses, bus effects, level meters and adaptive music.",
+			"files": [
+				"audio.odin",
+				"audio_nodes.odin",
+				"audio_effects.odin",
+				"audio_meter.odin",
+				"music_layers.odin"
+			]
+		},
+		{
+			"slug": "animation",
+			"title": "Animation",
+			"order": 8,
+			"description": "Sprite animations and their player, animation assets, Animator keyframe clips, tweens, easing curves, state machines and skeletal animation.",
+			"files": [
+				"animation.odin",
+				"animation_player.odin",
+				"animation_sets.odin",
+				"animator.odin",
+				"tween.odin",
+				"easing.odin",
+				"state_machine.odin",
+				"skeleton.odin",
+				"dragonbones.odin"
+			]
+		},
+		{
+			"slug": "particles-and-lines",
+			"title": "Particles and lines",
+			"order": 9,
+			"description": "Particle emitters on the CPU and the GPU, Line2D and Trail2D.",
+			"files": [
+				"particles.odin",
+				"gpu_particles.odin",
+				"lines.odin"
+			]
+		},
+		{
+			"slug": "lighting",
+			"title": "Lighting",
+			"order": 10,
+			"description": "2D lights, occluders, shadows and the scene's light map.",
+			"files": [
+				"lighting.odin"
+			]
+		},
+		{
+			"slug": "shaders-and-screen-effects",
+			"title": "Shaders and screen effects",
+			"order": 11,
+			"description": "Shader bundles and materials on nodes, compiling GLSL, and ScreenEffect nodes.",
+			"files": [
+				"shaders.odin",
+				"shader_compile.odin",
+				"screen_effects.odin"
+			]
+		},
+		{
+			"slug": "ui",
+			"title": "UI",
+			"order": 12,
+			"description": "Labels, menus, UI controls (panels, buttons, progress bars, text fields, scroll boxes, rich text), layouts and themes.",
+			"files": [
+				"ui_label.odin",
+				"ui_menu.odin",
+				"ui_menu_draw.odin",
+				"ui_menu_input.odin",
+				"ui_style.odin",
+				"ui_controls.odin",
+				"ui_theme.odin"
+			]
+		},
+		{
+			"slug": "tilemaps-and-aseprite",
+			"title": "Tilemaps and Aseprite",
+			"order": 13,
+			"description": "Aseprite files, their use in a running game, and TileMap nodes.",
+			"files": [
+				"aseprite.odin",
+				"aseprite_nodes.odin",
+				"tilemap.odin",
+				"inflate.odin"
+			]
+		},
+		{
+			"slug": "ldtk",
+			"title": "LDtk",
+			"order": 14,
+			"description": "LDtk projects as plain data, and LDtkLevel nodes built from them.",
+			"files": [
+				"ldtk.odin",
+				"ldtk_nodes.odin"
+			]
+		},
+		{
+			"slug": "dialogue",
+			"title": "Dialogue",
+			"order": 15,
+			"description": "Dialogue files and their runner, Yarn Spinner import, and the DialogueBox node.",
+			"files": [
+				"dialogue.odin",
+				"dialogue_box.odin",
+				"yarn.odin"
+			]
+		},
+		{
+			"slug": "navigation",
+			"title": "Navigation",
+			"order": 16,
+			"description": "Navigation regions and grids, A* paths, and NavAgent nodes.",
+			"files": [
+				"navigation.odin"
+			]
+		},
+		{
+			"slug": "scripts-globals-data-saves",
+			"title": "Scripts, globals, data and saves",
+			"order": 17,
+			"description": "Scripts attached to nodes, global scripts, data resources, saved games and hot reload's snapshots.",
+			"files": [
+				"script.odin",
+				"globals.odin",
+				"data.odin",
+				"save.odin",
+				"hot_reload.odin"
+			]
+		},
+		{
+			"slug": "scene-changes",
+			"title": "Scene changes",
+			"order": 18,
+			"description": "Transitions, scenes over scenes, loading screens and menu actions.",
+			"files": [
+				"scene_flow.odin"
+			]
+		},
+		{
+			"slug": "project-format-and-loading",
+			"title": "Project format and loading",
+			"order": 19,
+			"description": "The project and scene XML format, its parser, and building scenes from parsed data.",
+			"files": [
+				"project_format.odin",
+				"project_loader.odin"
+			]
+		},
+		{
+			"slug": "assets-and-import",
+			"title": "Assets and import",
+			"order": 20,
+			"description": "The resource manager, typed asset handles and import settings.",
+			"files": [
+				"resource_manager.odin",
+				"assets.odin",
+				"asset_import.odin"
+			]
+		},
+		{
+			"slug": "platform-player-web",
+			"title": "Platform, player and web",
+			"order": 21,
+			"description": "The player program, the platform layer (desktop and browser), the browser player, data packs and static SDL linking.",
+			"files": [
+				"player.odin",
+				"platform_native.odin",
+				"platform_web.odin",
+				"player_web.odin",
+				"pack.odin",
+				"sdl_static.odin"
+			]
+		},
+		{
+			"slug": "steam-touch-multiplayer",
+			"title": "Steam, touch and local multiplayer",
+			"order": 22,
+			"description": "Steam achievements, stats and cloud files; touch input and on-screen controls; local multiplayer players and split screen.",
+			"files": [
+				"steam.odin",
+				"touch.odin",
+				"players.odin"
+			]
+		},
+		{
+			"slug": "debug-and-live",
+			"title": "Debug and live",
+			"order": 23,
+			"description": "Debug drawing and the debug overlay, and the live link with the editor.",
+			"files": [
+				"debug.odin",
+				"live.odin",
+				"live_native.odin",
+				"live_web.odin"
+			]
+		},
+		{
+			"slug": "utilities",
+			"title": "Utilities",
+			"order": 24,
+			"description": "Paths and the package overview.",
+			"files": [
+				"paths.odin",
+				"doc.odin"
+			]
+		}
+	]
+}

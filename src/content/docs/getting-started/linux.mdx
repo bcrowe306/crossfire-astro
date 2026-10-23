@@ -1,0 +1,147 @@
+---
+title: Install on Linux
+description: Install the Crossfire Editor on Linux x86_64 from the AppImage or the tar.gz archive, and set up what scripts need.
+sidebar:
+  order: 1
+---
+
+import { Steps, Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+The editor is built for **Linux x86_64** and runs on distributions from about 2020 on (it's built
+against glibc 2.31). Everything it needs is inside the download, SDL included. Your system only
+has to provide a graphics driver with **Vulkan**.
+
+## Install
+
+There are two downloads. Both are on the [Download page](/download/) (and the
+[GitHub releases](https://github.com/bcrowe306/crossfire-editor/releases), marked pre-release).
+
+<Tabs>
+<TabItem label="AppImage">
+
+<Steps>
+
+1. Download `Crossfire_Editor-<version>-x86_64.AppImage`.
+
+2. Make it executable, then run it:
+
+   ```sh
+   chmod +x Crossfire_Editor-*-x86_64.AppImage
+   ./Crossfire_Editor-*-x86_64.AppImage
+   ```
+
+   You can also tick "Allow executing file as program" in your file manager's properties
+   dialog, then double-click it.
+
+</Steps>
+
+The AppImage is read-only, so the editor runs "installed": its settings and build folders go in
+`~/.local/share/crossfire-editor`, and the demo project is copied to
+`~/Documents/Crossfire Editor` the first time.
+
+</TabItem>
+<TabItem label="tar.gz">
+
+<Steps>
+
+1. Download `crossfire-editor-<version>-linux-x64.tar.gz` and unpack it anywhere:
+
+   ```sh
+   tar -xzf crossfire-editor-*-linux-x64.tar.gz
+   cd crossfire-editor-*-linux-x64
+   ```
+
+2. Run it:
+
+   ```sh
+   ./crossfire-editor
+   ```
+
+3. Optional: add it to your application menu, with its icon:
+
+   ```sh
+   ./install-desktop-entry.sh
+   ```
+
+</Steps>
+
+From the archive, the editor keeps its settings (`editor.ini`) beside itself, and opens the demo
+project from `examples/demo_project` in the same folder.
+
+</TabItem>
+</Tabs>
+
+## First run
+
+The editor opens the **demo project**. Press **F5** to play it: a space game, and from its menu a
+platformer level. Close the game window (or press **Shift+F5**) to come back.
+
+To open another project, use **File > Open Project** (Ctrl+O), or pass its folder:
+`./crossfire-editor path/to/MyGame`. The [editor manual](/manual/getting-started/) explains the
+window.
+
+## Scripts: Odin and a linker
+
+Projects **without** scripts play and export with nothing else installed: the editor ships a
+prebuilt game player.
+
+Projects **with** scripts are compiled, which needs two things:
+
+<Steps>
+
+1. **Odin.** Open **Edit > Settings...** (Ctrl+,) **> Toolchain** and press **Install Odin
+   dev-2026-10**. It downloads the version the engine uses (about 70 MB) into
+   `~/.local/share/crossfire-editor`. If you already have Odin `dev-2026-10` in your `PATH`, the
+   editor uses that.
+
+2. **clang**, which Odin links games with. The editor can't install it. Use your package manager:
+
+   ```sh
+   sudo apt install clang        # Debian, Ubuntu
+   sudo dnf install clang        # Fedora
+   sudo pacman -S clang          # Arch
+   ```
+
+3. Check **Settings > Toolchain** again: **Odin compiler** and **Linker (clang)** should have a
+   green check.
+
+</Steps>
+
+The demo project has scripts, so it needs these too. See
+[Settings and the toolchain](/manual/settings-and-toolchain/) for every row of that tab.
+
+## Common problems
+
+**The editor doesn't start, or says it can't create a Vulkan device.** Install your GPU's Vulkan
+driver and the Vulkan loader, then try again:
+
+```sh
+sudo apt install libvulkan1 mesa-vulkan-drivers vulkan-tools   # Debian, Ubuntu (AMD, Intel)
+sudo dnf install vulkan-loader mesa-vulkan-drivers vulkan-tools # Fedora
+sudo pacman -S vulkan-icd-loader vulkan-radeon vulkan-intel vulkan-tools # Arch (pick your GPU's)
+```
+
+NVIDIA's proprietary driver includes Vulkan. `vulkaninfo --summary` should list your GPU.
+
+**The AppImage does nothing when double-clicked.** It isn't executable yet: `chmod +x` it (above).
+
+**The AppImage says FUSE is missing** (`dlopen(): error loading libfuse.so.2`, or "AppImages
+require FUSE to run"). AppImages mount themselves with FUSE. Install it (`sudo apt install fuse3`,
+`sudo dnf install fuse`, `sudo pacman -S fuse3`), or run the AppImage without mounting it:
+
+```sh
+./Crossfire_Editor-*-x86_64.AppImage --appimage-extract-and-run
+```
+
+Or use the tar.gz archive, which needs no FUSE.
+
+**Play says "No Odin compiler" or the build fails at linking.** The project has scripts: install
+Odin and clang as above. The **Output** tab (Ctrl+J opens the bottom panel) shows what the build
+said.
+
+**The window is tiny on a tiling window manager.** The editor's layout wants room. Make the window
+floating or fullscreen.
+
+<Aside>
+Next: [Your first game](/getting-started/first-game/).
+</Aside>

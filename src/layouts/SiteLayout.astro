@@ -1,0 +1,109 @@
+---
+/*
+The layout of the site's own full-width pages (the landing page): the header with the site's
+links, the page, the footer. The docs use Starlight's layout instead, with the same links
+(components/HeaderLinks.astro) and colors (styles/theme.css).
+*/
+import '@fontsource/chakra-petch/600.css';
+import '@fontsource/chakra-petch/700.css';
+import '@fontsource-variable/inter';
+import '@fontsource-variable/jetbrains-mono';
+import '../styles/theme.css';
+import '../styles/site.css';
+import logo from '../assets/logo.png';
+import { Image } from 'astro:assets';
+import { SITE_LINKS, REPOS, ISSUES } from '../site';
+
+interface Props {
+	title: string;
+	description: string;
+}
+const { title, description } = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+---
+
+<!doctype html>
+<html lang="en" data-theme="dark">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>{title}</title>
+		<meta name="description" content={description} />
+		<link rel="canonical" href={canonical} />
+		<link rel="icon" href="/favicon.png" type="image/png" />
+		<meta property="og:title" content={title} />
+		<meta property="og:description" content={description} />
+		<meta property="og:type" content="website" />
+		<meta property="og:url" content={canonical} />
+		<meta property="og:image" content={new URL('/media/hero-poster.jpg', Astro.site)} />
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="theme-color" content="#08080b" />
+	</head>
+	<body class="cf-site">
+		<header class="cf-header">
+			<a class="cf-brand" href="/">
+				<Image src={logo} alt="" width={34} height={34} />
+				<span>Crossfire</span>
+			</a>
+			<nav aria-label="Site">
+				{SITE_LINKS.map((l) => <a href={l.href}>{l.label}</a>)}
+				<a class="cf-gh" href={REPOS.editor} aria-label="Crossfire on GitHub">
+					<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 .3a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.6-1.4-1.4-1.8-1.4-1.8-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 0-.8.4-1.3.7-1.6-2.7-.3-5.5-1.3-5.5-6 0-1.2.5-2.3 1.3-3.1-.2-.4-.6-1.6 0-3.2 0 0 1-.3 3.4 1.2a11.5 11.5 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.6 1.6.2 2.8 0 3.2.9.8 1.3 1.9 1.3 3.2 0 4.6-2.8 5.6-5.5 5.9.5.4.9 1 .9 2.2v3.3c0 .3.1.7.8.6A12 12 0 0 0 12 .3"/></svg>
+				</a>
+			</nav>
+		</header>
+
+		<main>
+			<slot />
+		</main>
+
+		<footer class="cf-footer">
+			<div class="cf-footer-cols">
+				<div>
+					<p class="cf-footer-brand">Crossfire</p>
+					<p>A 2D game engine and editor, written in Odin. MIT licensed.</p>
+				</div>
+				<div>
+					<p class="cf-footer-head">Learn</p>
+					<a href="/getting-started/">Getting started</a>
+					<a href="/examples/">Examples</a>
+					<a href="/manual/">Editor manual</a>
+					<a href="/api/">Engine API</a>
+				</div>
+				<div>
+					<p class="cf-footer-head">Project</p>
+					<a href="/download/">Download</a>
+					<a href="/about/">About</a>
+					<a href="/contribute/">Contribute</a>
+					<a href={ISSUES}>Report a bug</a>
+				</div>
+				<div>
+					<p class="cf-footer-head">Source</p>
+					<a href={REPOS.editor}>Editor</a>
+					<a href={REPOS.engine}>Engine</a>
+					<a href={REPOS.skald}>Skald (UI)</a>
+					<a href={REPOS.website}>This website</a>
+				</div>
+			</div>
+			<p class="cf-footer-fine">© {new Date().getFullYear()} Brandon Crowe and contributors. Built with Astro and Starlight.</p>
+		</footer>
+
+		<script>
+			// Sections fade and slide in as they scroll into view (not with reduced motion)
+			const items = document.querySelectorAll('[data-reveal]');
+			if (!matchMedia('(prefers-reduced-motion: reduce)').matches && 'IntersectionObserver' in window) {
+				const seen = new IntersectionObserver((entries) => {
+					for (const e of entries) {
+						if (e.isIntersecting) {
+							e.target.classList.add('is-in');
+							seen.unobserve(e.target);
+						}
+					}
+				}, { rootMargin: '0px 0px -10% 0px' });
+				items.forEach((el) => seen.observe(el));
+			} else {
+				items.forEach((el) => el.classList.add('is-in'));
+			}
+		</script>
+	</body>
+</html>
