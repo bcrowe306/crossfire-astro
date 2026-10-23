@@ -64,7 +64,10 @@ jobs:
           repository: ${{ env.EDITOR_REPO }}
           ref: ${{ needs.check.outputs.editor }}
           path: odin_sdl_editor
-          sparse-checkout: docs
+          # The manual, and the plugin API its plugin examples import
+          sparse-checkout: |
+            docs
+            plugin_api
       - name: The engine at its newest tag (the API reference, the examples' checks)
         uses: actions/checkout@v4
         with:
@@ -78,6 +81,10 @@ jobs:
           dir=$(dirname "$(find "$HOME/odin-x" -maxdepth 3 -type f -name odin | head -1)")
           echo "$dir" >> "$GITHUB_PATH"
           "$dir/odin" version
+      - name: Box2D (the engine refuses to compile without it)
+        run: |
+          git -C odin_sdl_engine submodule update --init --depth 1 third_party/box2d
+          bash odin_sdl_engine/tools/build_box2d.sh
       - uses: actions/setup-node@v4
         with:
           node-version: 24
