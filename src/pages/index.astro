@@ -16,39 +16,31 @@ import playConsole from '../assets/shots/play-console.jpg';
 
 const tag = release.tag;
 
-// A real script from the editor's demo project (examples/demo_project/scripts/coin.odin)
+// A script from the editor's demo project (Coin, in examples/demo_project/scripts/pickups.odin,
+// without the helpers it shares with the other pickups)
 const coin = `package scripts
 
-import "core:math"
 import e "engine:."
-import sdl "vendor:sdl3"
 
-// A coin: an Area with a sprite. Touch it to collect it.
+// A coin: an Area with a sprite (its bob is an Animator made in the Timeline).
+// Touch it to take it.
 Coin :: struct {
 	using script: e.Script,
-	// Set per coin in the inspector (or from an LDtk field)
-	value: int \`export:"default=1 min=1"\`,
-	sprite: ^e.Node,
-	time: f32,
+	// Set per coin in the inspector, or by its LDtk entity's "value" field
+	value: int \`export:"default=1 min=1 max=100"\`,
 	taken: bool,
 }
 
 @(init)
 register_Coin :: proc "contextless" () {
 	e.Script_Register(Coin, {
-		ready = proc(self: ^Coin) {
-			self.sprite = e.Node_FindChild(self.node, "Sprite")
-			self.time = self.node.position.x * 0.05
-		},
-		update = proc(self: ^Coin, _: []sdl.Event, deltaTime: f64) {
-			self.time += f32(deltaTime)
-			if self.sprite != nil do self.sprite.position.y = math.sin(self.time * 4) * 1.5
-		},
 		collisionEnter = proc(self: ^Coin, hit: ^e.Collision) {
 			if self.taken || !e.Node_Is(hit.other, e.CharacterMover) do return
 			self.taken = true
-			if state := e.Global(GameState); state != nil do state.coins += self.value
-			e.Game_PlaySound(self.game, SOUND_COIN)
+			if state := e.Global(GameState); state != nil do state.run.coins += self.value
+			e.Game_PlaySound(self.game, SOUND_COIN, bus = "SFX")
+			at := e.Node_GetWorldPosition(self.node)
+			e.Scene_AddComponent(self.scene, COMPONENT_SPARKLE, nil, at)
 			e.Scene_RemoveNode(self.scene, self.node.id)
 		},
 	})
@@ -223,8 +215,8 @@ const more = [
 				<p class="cf-kicker">Real code</p>
 				<h2 class="cf-h2">This is a <span class="cf-fire-text">whole</span> script</h2>
 				<p class="cf-lead">
-					A coin from the demo platformer. It bobs, it notices the player, it adds to the score in
-					a global and plays a sound. The <code>value</code> field shows up in the inspector. No
+					A coin from the demo platformer. It notices the player, adds to the run's coins in a
+					global, plays a sound on the effects bus and leaves a sparkle behind. The <code>value</code> field shows up in the inspector. No
 					boilerplate, no build files: save it and press Play.
 				</p>
 				<a class="cf-feature-link" href="/examples/">More examples →</a>

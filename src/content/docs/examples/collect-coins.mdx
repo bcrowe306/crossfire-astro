@@ -1,6 +1,6 @@
 ---
 title: Collect coins
-description: Coins on Areas that the player picks up, with a sound, a sparkle component, and a count kept in a global script that a label shows. From the demo's forest coins.
+description: Coins on Areas that the player picks up, with a sound, a sparkle component, and a count kept in a global script that a label shows. From the demo's coins.
 sidebar:
   order: 3
 ---
@@ -9,7 +9,7 @@ import { Steps, Aside } from '@astrojs/starlight/components';
 
 Coins that bob in place, and when the player touches one: it adds its value to the game's count,
 plays a sound, leaves a sparkle behind and disappears. A label shows the count. This is the demo
-project's forest coin (`scripts/coin.odin`).
+project's coin (`Coin` in `scripts/pickups.odin`).
 
 Three pieces:
 
@@ -196,6 +196,6 @@ COMPONENT_COIN :: e.ComponentAsset{"components/coin.component.xml"}
   ([Events of your own](/manual/scripts/#events-of-your-own)).
 
 <Aside>
-The demo's coin spawns `components/coinparticles.component.xml`, a ParticleEmitter whose
-`CoinCollect` script starts it and removes it when its `onFinished` event fires.
+The demo's coin spawns `components/sparkle.component.xml`, a ParticleEmitter whose
+`Burst` script starts it and removes it when its `onFinished` event fires.
 </Aside>

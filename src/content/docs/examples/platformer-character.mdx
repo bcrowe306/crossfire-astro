@@ -1,6 +1,6 @@
 ---
 title: A platformer character
-description: Run, jump with coyote time and a jump buffer, short hops, falling through one-way platforms, animations and a mirrored sprite, on a CharacterMover. From the demo's forest hero.
+description: Run, jump with coyote time and a jump buffer, short hops, falling through one-way platforms, animations and a mirrored sprite, on a CharacterMover. From the demo's hero.
 sidebar:
   order: 2
 ---
@@ -10,7 +10,7 @@ import { Steps, Aside } from '@astrojs/starlight/components';
 A side-view character that feels good to control: it runs, jumps, makes a short hop when you let
 go early, still jumps if you press a moment too late (after running off a ledge) or a moment too
 early (just before landing), drops through one-way platforms, and plays idle, run, jump and fall
-animations. It's the movement of the demo project's forest hero (`scripts/hero.odin`), without
+animations. It's the movement of the demo project's hero (`scripts/hero.odin`), without
 the combat.
 
 ## The scene
@@ -171,6 +171,7 @@ ACTION_JUMP :: "jump"
   ```
 
 <Aside>
-The forest hero (`scripts/hero.odin` in the demo project) adds a sword attack, knockback when hurt,
-falling into pits and respawning on the last firm ground.
+The demo's hero (`scripts/hero.odin`) adds speeding up and slowing down, a state machine picking
+her animations, a sword attack timed by the Aseprite file's frame events, knockback when hurt,
+riding moving platforms, falling into pits and respawning on the last firm ground.
 </Aside>

@@ -10,8 +10,7 @@ import { Steps, Aside } from '@astrojs/starlight/components';
 An enemy that walks between where it was placed and a patrol point, turning at each end. Touching
 it from the side hurts the player and knocks them back; landing on it from above (a stomp) hurts
 the enemy instead, which flashes red, gets pushed away and, out of health, fades out and goes.
-It's a cut-down version of the demo's forest enemies (`scripts/enemy.odin`, `snail.odin`,
-`boar.odin`).
+It's a cut-down version of the demo's creatures (`scripts/enemy.odin`, `creatures.odin`).
 
 Two scripts: **Health** on the player, and **Patroller** on each enemy.
 
@@ -226,11 +225,11 @@ SOUND_STOMP :: e.SoundAsset{"assets/stomp.ogg"}
   ```
 
 - A charger: when the player is within 150 px on its level, set `heading` toward them and
-  triple the speed (the demo's `boar.odin`).
+  triple the speed (the demo's `Boar` in `creatures.odin`).
 - Blood, a hitstop and a camera shake on each hit: [Camera follow, shake and
   hitstop](/examples/camera-shake-hitstop/).
 - Don't walk off ledges: before stepping, check there's ground ahead. With an LDtk level, the demo
-  asks its IntGrid: `e.LDtk_IntGridAtPosition(level, "Collisions", ahead) != 0`.
+  asks its IntGrid: `e.LDtk_IntGridAtPosition(level, "Ground", ahead) != 0`.
 
 <Aside>
 In the demo, the enemies share one `Enemy` struct (health, flash, knockback, dying) that each

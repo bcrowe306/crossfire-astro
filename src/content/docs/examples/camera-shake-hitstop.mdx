@@ -1,6 +1,6 @@
 ---
 title: Camera follow, shake and hitstop
-description: A camera that follows the player by itself with a look-ahead and stays inside the level, zooms smoothly, and shakes and freezes the game for a moment on hits. Based on the demo's forest hero and effects.
+description: A camera that follows the player by itself with a look-ahead and stays inside the level, zooms smoothly, and shakes and freezes the game for a moment on hits. Based on the demo's hero and effects.
 sidebar:
   order: 6
 ---
@@ -11,8 +11,8 @@ Two things that make a game feel solid: a camera that moves well, and hits you c
 sets up a **Camera** that follows the player by itself (its **Target**: a look-ahead, an offset,
 limits at the level's edges, no code), a small **CameraRig** script that zooms out while a button
 is held, and a `Hit_Feel` procedure any script can call when something gets hit: a camera shake
-plus a **hitstop**, the few frames of freeze that make a blow land. They're based on the demo's
-forest level (`scripts/hero.odin`, `scripts/effects.odin`), which still follows from code.
+plus a **hitstop**, the few frames of freeze that make a blow land. They're based on the demo
+(`scripts/hero.odin`, `scripts/effects.odin`), whose levels' Camera nodes follow the hero this way.
 
 ## The scene
 

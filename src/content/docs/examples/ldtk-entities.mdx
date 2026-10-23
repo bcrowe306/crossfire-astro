@@ -1,6 +1,6 @@
 ---
 title: Read LDtk entities and fields
-description: Scripts for entities placed in the LDtk level editor - fields that set script values, a key whose entity reference opens a gate, counting entities, reading the IntGrid, and entities made by code. From the demo's forest level.
+description: Scripts for entities placed in the LDtk level editor - fields that set script values, a key whose entity reference opens a gate, counting entities, reading the IntGrid, and entities made by code. From the demo's levels.
 sidebar:
   order: 14
 ---
@@ -14,7 +14,7 @@ has the entity's name on it. This page covers what those scripts can read:
 
 - **fields** that set exported script fields by name (a spring's `power`);
 - an **entity reference**: a key whose `opens` field points at a gate, so the level decides which
-  key opens which gate (the demo's `scripts/key.odin`);
+  key opens which gate (the demo's boss trigger closes its arena's gate this way);
 - **finding entities** (how many coins are left) and **reading the IntGrid** (is the player in
   water?);
 - an entity **made by code** instead of a component (a torch).
@@ -190,7 +190,7 @@ if Level_CoinsLeft(self.scene) == 0 do log.info("every coin found")
   list to keep. A Key entity's node gets the `Key` script.
 - **Fields set script fields** by name, when the script exports one: LDtk's `power` sets `power`
   (capitals and underscores don't matter: `move_speed` sets `moveSpeed`). Integers, floats, booleans, strings, enums, colors and points work; a
-  Point becomes the pixel position of the middle of its cell (the demo's snail patrols to one).
+  Point becomes the pixel position of the middle of its cell (the demo's boars and bees patrol to one).
   Each entity has its own values, so one Spring script makes weak and strong springs.
 - **`e.LDtk_EntityRefNode(node, field)`** follows an Entity ref field to the node made for the
   entity it points at (`e.LDtk_EntityRefNodes` for an array of them). `e.Node_GetScript(node, Gate)`
@@ -223,6 +223,7 @@ if Level_CoinsLeft(self.scene) == 0 do log.info("every coin found")
   ```
 
 <Aside>
-The demo project's forest level (ForestScene, `assets/forest/forest.ldtk`) is built this way:
-hero, coins, snails, boars, bees, key, gate and chest.
+The demo project's three levels (`assets/levels/legacy.ldtk`, one scene each) are built this way:
+the hero, coins, gems, pots, snails, boars, bees, rune stones, moving platforms, the boss and the
+trigger that closes the gate behind her.
 </Aside>

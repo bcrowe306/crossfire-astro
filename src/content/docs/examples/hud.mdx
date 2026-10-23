@@ -13,7 +13,8 @@ one, and this page does both from the same data:
 - **UI nodes** you lay out in the editor (a **ProgressBar** and a **RichText**), with a small script
   that copies the values in. Easy to arrange and theme; one per scene.
 - **A global that draws**: a global script's `draw` hook draws over every scene, in screen space.
-  Nothing to place; it's all code. The demo project's HUD (`scripts/hud.odin`) is one.
+  Nothing to place; it's all code. (The demo project's HUD is the first kind:
+  `components/hud.component.xml` and `scripts/hud.odin`.)
 
 Both read a **PlayerStats** global, which the rest of the game changes.
 
@@ -204,7 +205,7 @@ register_HudOverlay :: proc "contextless" () {
 
 ## Try it
 
-- Coins with an icon, as the demo does:
+- Coins with an icon:
   `e.DrawTexture(renderer, e.Asset_Texture(self.game, TEXTURE_COIN), {14, 48, 64, 64})`.
 - Blink the bar while health is low: skip drawing `fill` when `int(self.game.time * 6) % 2 == 0`
   (`game.time` is the seconds the game has run).

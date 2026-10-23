@@ -17,7 +17,7 @@ This page makes three scripts:
 - **Gun** fires a bullet toward the mouse while "shoot" is held, a few times a second;
 - **Bullet** flies straight, and on hitting something leaves a burst of sparks and goes;
 - **Burst** starts a one-shot particle emitter and removes it when its particles are gone (the
-  demo's `scripts/effects.odin` uses it for blood).
+  demo's `scripts/effects.odin` uses it for sparks, dust and blood).
 
 ## The scene
 
@@ -220,7 +220,7 @@ ACTION_SHOOT :: "shoot"
 - Hurt what it hits: look for a script on `hit.other` before removing the bullet, like the
   `Patroller_Hurt` call in [Enemies that patrol](/examples/patrolling-enemy/).
 - Bigger blasts from the same component: change the emitter's settings on the copy, as the demo's
-  `Effects_Hit` does: `(cast(^e.ParticleEmitter)blood).settings.amount = 48`.
+  `Effects_Hit` does: `emitter.settings.amount *= 2` for a heavy hit.
 
 <Aside>
 [Components](/manual/components/) covers editing a component (every copy in every scene changes),
