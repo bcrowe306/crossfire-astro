@@ -4,15 +4,18 @@
 # reference from the newest engine tag. Code examples are type-checked against that engine before
 # anything is deployed.
 #
-# When it runs: pushes to main; by hand (Actions > Deploy > Run workflow); a repository_dispatch
-# "editor-release" (the editor's release workflow sends one when it has a token for it); and every
+# When it runs: pushes to main; by hand (Actions > Deploy > Run workflow); called by the editor's
+# release workflow once a release's files are uploaded (workflow_call: it runs in the editor's
+# repository with its secrets, so every path here names this repository explicitly); and every
 # hour, when the newest editor release isn't the one the live site describes (/release.json).
+# repository_dispatch "editor-release" still works for a caller with a token.
 name: Deploy
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
+  workflow_call:
   repository_dispatch:
     types: [editor-release]
   schedule:
@@ -57,6 +60,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          repository: bcrowe306/crossfire-astro
           path: crossfire_astro
       - name: The editor at its newest release (its manual)
         uses: actions/checkout@v4

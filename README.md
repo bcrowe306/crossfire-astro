@@ -44,7 +44,8 @@ odin_sdl_editor/    bcrowe306/crossfire-editor
 ## Deploying
 
 `.github/workflows/deploy.yml` builds and deploys to Cloudflare Pages (project `crossfire-astro`)
-on pushes to main, by hand, when the editor's release workflow dispatches `editor-release`, and
+on pushes to main, by hand, from the editor's release workflow (its `website` job calls this
+workflow with `workflow_call`, using the editor repository's Cloudflare secrets), and
 hourly when the newest editor release isn't the one the live site describes (`/release.json`).
 The docs come from the newest editor release and engine tag. Secrets: `CLOUDFLARE_API_TOKEN`,
 `CLOUDFLARE_ACCOUNT_ID`.
