@@ -101,7 +101,8 @@ The editor expects the engine **next to it**, in a folder named `odin_sdl_engine
 
    Put them all in your `PATH`. Odin's Windows release already includes SDL's libraries and STB.
 
-2. In **Git Bash** (the build scripts are bash scripts), clone both repositories side by side:
+2. In **Git Bash** (the engine's build scripts are bash scripts, and the tasks run them with its
+   `bash`), clone both repositories side by side:
 
    ```sh
    git clone --recursive https://github.com/bcrowe306/crossfire-editor odin_sdl_editor
@@ -109,28 +110,22 @@ The editor expects the engine **next to it**, in a folder named `odin_sdl_engine
    cd odin_sdl_editor
    ```
 
-3. One-time setup, in Git Bash: the submodules, then the engine's Box2D and static SDL (built with
-   clang and Visual Studio). Odin's Windows release has STB built, so there's no `task stb` step:
+3. One-time setup, in Git Bash: the submodules, Odin's STB libraries (Odin's Windows release has
+   them built, so this step skips them) and the engine's Box2D (built with clang and llvm-lib):
 
    ```sh
-   git submodule update --init --recursive
-   ../odin_sdl_engine/tools/build_box2d.sh
-   ../odin_sdl_engine/tools/build_sdl_static.sh
+   task setup
    ```
 
-4. Build and run the editor:
+4. Build and run the editor. The first run also builds the engine's static SDL (with Visual
+   Studio and CMake), the prebuilt player and the shader tools, which takes a while:
 
    ```sh
    task run
    ```
 
-   If Task can't run the engine's `.sh` scripts from its own shell on your machine, build with
-   Odin directly (this is the command `task build:release` runs):
-
-   ```sh
-   odin build . -collection:gui=Skald -collection:engine=../odin_sdl_engine -define:ENGINE_DIR=../odin_sdl_engine -resource:crossfire.rc -o:speed -out:build/release/crossfire-editor.exe
-   build/release/crossfire-editor.exe
-   ```
+   Run `task` from Git Bash, not PowerShell or `cmd`: there, `bash` may be missing from the
+   `PATH`, or be WSL's.
 
 </Steps>
 
