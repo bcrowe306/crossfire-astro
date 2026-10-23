@@ -25,7 +25,8 @@ the combat.
 2. Ground: a **StaticBody** with rectangle CollisionShapes (or an
    [LDtk level](/manual/levels/) or [tilemap](/manual/tilemaps/) with collision). For platforms
    you can jump up through, tick **One-way** on their shapes.
-3. A **Camera** node in the scene (the first one is the scene's camera).
+3. A **Camera** node in the scene (the first one is the scene's camera), following the hero by
+   itself: its **Target** is Hero, **Aim offset Y** -24 (a little above the feet).
 4. Project Settings > **Input**: an action **jump** bound to Space, W, Up and the gamepad's
    **South** button. `ui_left`, `ui_right` and `ui_down` are there already.
 5. Import a jump sound (`jump.ogg`), then give Hero a script named `Platformer`.
@@ -46,7 +47,7 @@ scripted gravity (the project's gravity only moves DynamicBodies), and forgives:
 - coyote time: a jump still works for a moment after running off a ledge;
 - a jump buffer: a jump pressed just before landing happens on landing;
 - short hops: letting go of jump while rising cuts the rise.
-Holding ui_down drops through one-way platforms. The camera follows it.
+Holding ui_down drops through one-way platforms. (The camera follows it by itself: its Target.)
 */
 Platformer :: struct {
 	using script: e.Script,
@@ -74,8 +75,6 @@ register_Platformer :: proc "contextless" () {
 			if sprite := e.Node_FindChild(self.node, "Sprite"); e.Node_Is(sprite, e.AnimatedSprite) {
 				self.sprite = cast(^e.AnimatedSprite)sprite
 			}
-			// Start the camera on the hero, not sliding over from where it was placed
-			if self.scene.camera != nil do e.Camera2D_SnapTo(self.scene.camera, e.Node_GetWorldPosition(self.node))
 		},
 		update = proc(self: ^Platformer, events: []sdl.Event, deltaTime: f64) {
 			mover := cast(^e.CharacterMover)self.node
@@ -115,10 +114,6 @@ register_Platformer :: proc "contextless" () {
 				// The sheet faces right; a negative scale mirrors it
 				self.sprite.scale.x = self.facing
 			}
-			// The camera eases toward a point a little above the feet
-			if self.scene.camera != nil {
-				e.Camera2D_Follow(self.scene.camera, e.Node_GetWorldPosition(self.node) - {0, 24}, deltaTime)
-			}
 		},
 	})
 }
@@ -154,8 +149,8 @@ ACTION_JUMP :: "jump"
 - **Short hops.** On release, a rising character keeps 45% of its upward speed.
 - **One-way platforms** let a mover through from below. `dropThrough` lets it through from above
   too, while set ([One-way platforms](/manual/physics/#one-way-platforms)).
-- **The camera.** `e.Camera2D_Follow` eases the scene's camera toward a point with the camera's
-  follow settings (smoothing, deadzone). See [Camera follow, shake and
+- **The camera** follows its Target by itself: it starts on the hero and eases after it with its
+  follow settings (mode, smoothing, dead zone, look-ahead). See [Camera follow, shake and
   hitstop](/examples/camera-shake-hitstop/) for keeping it inside the level.
 
 ## Try it
