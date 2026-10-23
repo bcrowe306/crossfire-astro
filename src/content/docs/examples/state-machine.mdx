@@ -127,6 +127,10 @@ ACTION_ATTACK :: "attack"
 - **Parameters** are the script's only contact with it: `e.StateMachine_SetFloat`, `SetBool` and
   `SetTrigger`. A Trigger stays set until a transition that reads it is taken, so a press during
   a jump still attacks.
+- **The names have constants.** The editor writes one for each of the machine's parameters and
+  states in `scripts/assets.odin` (`PARAM_<SCENE>_BRAIN_SPEED`, `STATE_<SCENE>_BRAIN_ATTACK`, with
+  the name of the scene the Brain is in): use them instead of the strings, and a typo is a compile
+  error ([Scripts](/manual/scripts/#names-of-everything-else)).
 - **The attack plays out.** Its way back to idle waits for **When its animation ends**; nothing
   else leaves attack, so it can't be cut short.
 - **`e.Event_Subscribe`** attaches a procedure to the machine's **onStateEntered** event; its data

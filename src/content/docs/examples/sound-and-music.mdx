@@ -210,6 +210,8 @@ ACTION_UI_ACCEPT :: "ui_accept"
 - **An Area's `collisionExit`** comes when the body leaves it: the way back to the old song.
 - **`e.Audio_GetBus(name)`** gives a bus's current volume, pan and mute; `e.Audio_SetBusVolume` and
   `e.Audio_SetBusMute` change them. The node path `/Music` starts from the top of the scene.
+  Buses and node paths have constants in `scripts/assets.odin` too (`BUS_MUSIC`,
+  `PATH_<SCENE>_MUSIC`), so a renamed bus or node is a compile error.
 
 ## Try it
 

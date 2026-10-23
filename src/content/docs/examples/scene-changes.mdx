@@ -120,6 +120,8 @@ ACTION_UI_CANCEL :: "ui_cancel"
 - **`kind=scene`** on a string field makes the inspector offer the project's scenes; an enum field
   (`e.TransitionKind`) becomes a dropdown of its values.
 - `used` makes the door fire once: the player stays inside the Area during the transition.
+- **Scenes have constants** in `scripts/assets.odin` (`SCENE_LEVEL_2 :: "Level2"`) for code that
+  names one: `e.Game_ChangeScene(self.game, SCENE_LEVEL_2)` is checked by the compiler.
 
 ## Try it
 
