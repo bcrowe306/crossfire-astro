@@ -72,7 +72,9 @@ const engineFiles = new Set(api.files.map((f) => f.file));
 const unmapped = [...engineFiles].filter((f) => !areaOfFile.has(f));
 const missing = [...areaOfFile.keys()].filter((f) => !engineFiles.has(f));
 if (unmapped.length) errors.push(`engine files in no area (add them to scripts/api-groups.json): ${unmapped.join(', ')}`);
-if (missing.length) errors.push(`files in scripts/api-groups.json that the engine doesn't have: ${missing.join(', ')}`);
+// A listed file the engine doesn't have yet is fine: the site is pushed before the engine's next tag
+// (CLAUDE.md, Releases), so its areas may list a file that tag adds
+if (missing.length) console.warn(`build-api: warning: files in scripts/api-groups.json that this engine doesn't have (yet): ${missing.join(', ')}`);
 if (errors.length) {
 	for (const e of errors) console.error(`build-api: error: ${e}`);
 	process.exit(1);

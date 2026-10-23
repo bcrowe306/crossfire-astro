@@ -30,3 +30,8 @@ The workspace's `../starlight/` is a clone of Starlight itself at the same versi
   `wrangler pages deploy dist`). R2 bucket `crossfire-downloads`
   at downloads.crossfireengine.io. The credentials are the workspace's `cloudfare.env` (never print
   or commit it) and the repository secrets.
+- **Releases: push this site first, then tag the engine and editor.** The editor's release deploys the
+  site from main, at the release's docs; a site change the release needs (a new engine file's API
+  area in `scripts/api-groups.json`, pages using new API) must already be on main, or the release's
+  deploy fails (dev.57 did: names.odin had no area). An area may list a file the current engine tag
+  doesn't have yet (a warning, not an error).
