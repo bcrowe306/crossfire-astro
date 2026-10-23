@@ -203,9 +203,10 @@
 			"slug": "scripts-globals-data-saves",
 			"title": "Scripts, globals, data and saves",
 			"order": 17,
-			"description": "Scripts attached to nodes, global scripts, data resources, saved games and hot reload's snapshots.",
+			"description": "Scripts attached to nodes, global scripts, data resources, saved games, hot reload's snapshots, and the name types engine procedures take (scenes, node paths, animations, actions...).",
 			"files": [
 				"script.odin",
+				"names.odin",
 				"globals.odin",
 				"data.odin",
 				"save.odin",
