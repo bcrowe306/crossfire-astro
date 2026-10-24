@@ -274,7 +274,7 @@
 			"title": "Debug, logging and live",
 			"label": "Debug and live",
 			"order": 23,
-			"description": "Debug drawing and the debug overlay, logging (levels, categories, SDL's messages), and the live link with the editor.",
+			"description": "Debug drawing and the debug overlay, logging (levels, categories, SDL's messages), the live link with the editor, and Spall profiling traces.",
 			"files": [
 				"debug.odin",
 				"logging.odin",
@@ -282,7 +282,10 @@
 				"logging_darwin.odin",
 				"live.odin",
 				"live_native.odin",
-				"live_web.odin"
+				"live_web.odin",
+				"trace.odin",
+				"trace_native.odin",
+				"trace_web.odin"
 			]
 		},
 		{
