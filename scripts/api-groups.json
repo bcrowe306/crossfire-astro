@@ -285,7 +285,9 @@
 				"live_web.odin",
 				"trace.odin",
 				"trace_native.odin",
-				"trace_web.odin"
+				"trace_web.odin",
+				"trace_clock_posix.odin",
+				"trace_clock_other.odin"
 			]
 		},
 		{
