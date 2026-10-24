@@ -14,10 +14,15 @@ The workspace's `../starlight/` is a clone of Starlight itself at the same versi
   the block convention in README.md; `odin nocheck` only for code that isn't meant to compile.
 - **Every engine file belongs to an API area** (`scripts/api-groups.json`): a new engine file
   needs an entry, or `build-api.mjs` complains. **The editor mirrors the areas** (its
-  engine_docs.odin's `ENGINE_API_AREAS`: F1 on an engine name in a code tab opens
-  `/api/<area>/#<name lower-cased>`), so a change here goes there too; the editor's
-  `engine_api_areas_match_the_website` test compares them. Page slugs and heading anchors are
-  links from the editor: keep them stable.
+  engine_docs.odin's `ENGINE_API_AREAS`: slugs, titles, descriptions and files), so a change
+  here goes there too; the editor's `engine_api_areas_match_the_website` test compares them.
+- **The editor has these docs offline too** (its docs window: the manual's files and an API
+  reference it makes itself the way build-api.mjs does, addressed by this site's paths, with
+  "Open on crossfireengine.io" for the same page). Page slugs and heading anchors (Starlight's
+  github-slugger ids, which the editor computes the same way) are links from the editor: F1 and
+  Open Docs open `/api/<area>/#<name lower-cased>`, the node guides' `/manual/nodes-*/#<kind>`
+  and other manual sections. Keep them stable; a change to how build-api.mjs lays out pages
+  belongs in the editor's docs.odin too.
 - **The look:** `src/styles/theme.css` (Starlight's variables and the `--cf-*` palette: the logo's
   fire on near-black, Chakra Petch / Inter / JetBrains Mono, sharp corners and diagonal cuts).
   The hand-built pages are dark only; the docs have a light theme too.
