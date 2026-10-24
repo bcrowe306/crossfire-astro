@@ -238,7 +238,7 @@ function declMarkdown(d, file, slug) {
 }
 
 function areaPage(g) {
-	const files = g.files.map((f) => api.files.find((x) => x.file === f));
+	const files = g.files.map((f) => api.files.find((x) => x.file === f)).filter(Boolean); // a listed file the engine lacks yet: left out
 	const out = [frontmatter({ title: g.title, description: g.description, order: g.order, label: g.label })];
 	out.push(inline(g.description, g.slug), '');
 	const fileList = files.map((f) => {
