@@ -289,9 +289,10 @@
 			"slug": "utilities",
 			"title": "Utilities",
 			"order": 24,
-			"description": "Paths and the package overview.",
+			"description": "Paths, running other programs, and the package overview.",
 			"files": [
 				"paths.odin",
+				"process_exec.odin",
 				"doc.odin"
 			]
 		}
